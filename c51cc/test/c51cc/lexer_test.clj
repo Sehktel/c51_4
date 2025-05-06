@@ -7,18 +7,18 @@
 (deftest test-keyword-tokenization
   (testing "Токенизация основных типов данных"
 
-    (is (= [{:type :type-keyword, :value "void"}] (lexer/tokenize "void")))
-    (is (= [{:type :type-keyword, :value "int"}] (lexer/tokenize "int")))
-    (is (= [{:type :type-keyword, :value "char"}] (lexer/tokenize "char")))
-    (is (= [{:type :type-keyword, :value "signed"}] (lexer/tokenize "signed")))
-    (is (= [{:type :type-keyword, :value "unsigned"}] (lexer/tokenize "unsigned"))))
+    (is (= [{:type :void-type-keyword, :value "void"}] (lexer/tokenize "void")))
+    (is (= [{:type :int-type-keyword, :value "int"}] (lexer/tokenize "int")))
+    (is (= [{:type :char-type-keyword, :value "char"}] (lexer/tokenize "char")))
+    (is (= [{:type :signed-type-keyword, :value "signed"}] (lexer/tokenize "signed")))
+    (is (= [{:type :unsigned-type-keyword, :value "unsigned"}] (lexer/tokenize "unsigned"))))
   
   (testing "Токенизация управляющих конструкций"
-    (is (= [{:type :control-keyword, :value "if"}] (lexer/tokenize "if")))
-    (is (= [{:type :control-keyword, :value "else"}] (lexer/tokenize "else")))
-    (is (= [{:type :control-keyword, :value "for"}] (lexer/tokenize "for")))
-    (is (= [{:type :control-keyword, :value "while"}] (lexer/tokenize "while")))
-    (is (= [{:type :control-keyword, :value "return"}] (lexer/tokenize "return")))))
+    (is (= [{:type :if-control-keyword, :value "if"}] (lexer/tokenize "if")))
+    (is (= [{:type :else-control-keyword, :value "else"}] (lexer/tokenize "else")))
+    (is (= [{:type :for-control-keyword, :value "for"}] (lexer/tokenize "for")))
+    (is (= [{:type :while-control-keyword, :value "while"}] (lexer/tokenize "while")))
+    (is (= [{:type :return-control-keyword, :value "return"}] (lexer/tokenize "return")))))
 
 ;;Тест для ключевого слова main
 (deftest test-main-keyword
@@ -30,10 +30,10 @@
 ;; Тесты для Специальные ключевые слова микроконтроллера
 (deftest test-c51-keywords
   (testing "Токенизация специальных ключевых слов микроконтроллера"
-    (is (= [{:type :c51-keyword, :value "interrupt"}] (lexer/tokenize "interrupt")))
-    (is (= [{:type :c51-keyword, :value "sfr"}] (lexer/tokenize "sfr")))
-    (is (= [{:type :c51-keyword, :value "sbit"}] (lexer/tokenize "sbit")))
-    (is (= [{:type :c51-keyword, :value "using"}] (lexer/tokenize "using")))))
+    (is (= [{:type :interrupt-c51-keyword, :value "interrupt"}] (lexer/tokenize "interrupt")))
+    (is (= [{:type :sfr-c51-keyword, :value "sfr"}] (lexer/tokenize "sfr")))
+    (is (= [{:type :sbit-c51-keyword, :value "sbit"}] (lexer/tokenize "sbit")))
+    (is (= [{:type :using-c51-keyword, :value "using"}] (lexer/tokenize "using")))))
 
 ;; Тесты для токенизации скобок
 (deftest test-bracket-tokenization
@@ -51,37 +51,37 @@
 ;; Операторы сравнения
 (deftest test-comparison-operator-tokenization
   (testing "Токенизация операторов сравнения"
-    (is (= [{:type :comparison-operator, :value ">"}] (lexer/tokenize ">")))
-    (is (= [{:type :comparison-operator, :value "<"}] (lexer/tokenize "<")))
-    (is (= [{:type :comparison-operator, :value ">="}] (lexer/tokenize ">=")))
-    (is (= [{:type :comparison-operator, :value "<="}] (lexer/tokenize "<=")))
-    (is (= [{:type :comparison-operator, :value "!="}] (lexer/tokenize "!=")))
+    (is (= [{:type :greater-comparison-operator, :value ">"}] (lexer/tokenize ">")))
+    (is (= [{:type :less-comparison-operator, :value "<"}] (lexer/tokenize "<")))
+    (is (= [{:type :greater-equal-comparison-operator, :value ">="}] (lexer/tokenize ">=")))
+    (is (= [{:type :less-equal-comparison-operator, :value "<="}] (lexer/tokenize "<=")))
+    (is (= [{:type :not-equal-comparison-operator, :value "!="}] (lexer/tokenize "!=")))
     ))
 
 ;; Операторы присваивания
 (deftest test-assignment-operator-tokenization
   (testing "Токенизация операторов присваивания"
-    (is (= [{:type :assignment-operator, :value "="}] (lexer/tokenize "=")))
-    (is (= [{:type :assignment-operator, :value "&="}] (lexer/tokenize "&=")))
-    (is (= [{:type :assignment-operator, :value "|="}] (lexer/tokenize "|=")))
-    (is (= [{:type :assignment-operator, :value "^="}] (lexer/tokenize "^=")))))
+    (is (= [{:type :equal-assignment-operator, :value "="}] (lexer/tokenize "=")))
+    (is (= [{:type :and-equal-assignment-operator, :value "&="}] (lexer/tokenize "&=")))
+    (is (= [{:type :or-equal-assignment-operator, :value "|="}] (lexer/tokenize "|=")))
+    (is (= [{:type :xor-equal-assignment-operator, :value "^="}] (lexer/tokenize "^=")))))
 
 
 ;; Битовые операторы
 (deftest test-bitwise-operator-tokenization
   (testing "Токенизация битовых операторов"
-    (is (= [{:type :bitwise-operator, :value "&"}] (lexer/tokenize "&")))
-    (is (= [{:type :bitwise-operator, :value "|"}] (lexer/tokenize "|")))
-    (is (= [{:type :bitwise-operator, :value "^"}] (lexer/tokenize "^")))
-    (is (= [{:type :bitwise-operator, :value "~"}] (lexer/tokenize "~")))))
+    (is (= [{:type :and-bitwise-operator, :value "&"}] (lexer/tokenize "&")))
+    (is (= [{:type :or-bitwise-operator, :value "|"}] (lexer/tokenize "|")))
+    (is (= [{:type :xor-bitwise-operator, :value "^"}] (lexer/tokenize "^")))
+    (is (= [{:type :not-bitwise-operator, :value "~"}] (lexer/tokenize "~")))))
 
 ;; Разделители
 (deftest test-separator-tokenization
   (testing "Токенизация разделителей"
-    (is (= [{:type :separator, :value ";"}] (lexer/tokenize ";")))
-    (is (= [{:type :separator, :value ","}] (lexer/tokenize ",")))
-    (is (= [{:type :separator, :value "."}] (lexer/tokenize ".")))
-    (is (= [{:type :separator, :value ":"}] (lexer/tokenize ":")))))
+    (is (= [{:type :semicolon-separator, :value ";"}] (lexer/tokenize ";")))
+    (is (= [{:type :comma-separator, :value ","}] (lexer/tokenize ",")))
+    (is (= [{:type :dot-separator, :value "."}] (lexer/tokenize ".")))
+    (is (= [{:type :colon-separator, :value ":"}] (lexer/tokenize ":")))))
 
 ;; Тесты для токенизации чисел
 (deftest test-number-tokenization
@@ -97,18 +97,18 @@
 ;; Арифметические операторы
 (deftest test-arithmetic-operator-tokenization
   (testing "Токенизация арифметических операторов"
-    (is (= [{:type :math-operator, :value "+"}] (lexer/tokenize "+")))
-    (is (= [{:type :math-operator, :value "-"}] (lexer/tokenize "-")))
-    (is (= [{:type :math-operator, :value "*"}] (lexer/tokenize "*")))
-    (is (= [{:type :math-operator, :value "/"}] (lexer/tokenize "/")))
-    (is (= [{:type :math-operator, :value "%"}] (lexer/tokenize "%"))))) 
+    (is (= [{:type :plus-math-operator, :value "+"}] (lexer/tokenize "+")))
+    (is (= [{:type :minus-math-operator, :value "-"}] (lexer/tokenize "-")))
+    (is (= [{:type :multiply-math-operator, :value "*"}] (lexer/tokenize "*")))
+    (is (= [{:type :divide-math-operator, :value "/"}] (lexer/tokenize "/")))
+    (is (= [{:type :modulo-math-operator, :value "%"}] (lexer/tokenize "%"))))) 
 
 ;; Логические операторы
 (deftest test-logical-operator-tokenization
   (testing "Токенизация логических операторов"
-    (is (= [{:type :logical-operator, :value "||"}] (lexer/tokenize "||")))
-    (is (= [{:type :logical-operator, :value "&&"}] (lexer/tokenize "&&")))
-    (is (= [{:type :logical-operator, :value "!"}] (lexer/tokenize "!")))
+    (is (= [{:type :or-logical-operator, :value "||"}] (lexer/tokenize "||")))
+    (is (= [{:type :and-logical-operator, :value "&&"}] (lexer/tokenize "&&")))
+    (is (= [{:type :not-logical-operator, :value "!"}] (lexer/tokenize "!")))
     ))
 
 
@@ -196,4 +196,4 @@
 
 
 ;; Запуск всех тестов
-(run-tests)
+;; (run-tests)
