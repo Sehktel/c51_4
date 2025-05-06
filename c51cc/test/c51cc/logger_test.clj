@@ -1,11 +1,13 @@
-(ns c51cc.logger_test
-  (:require [clojure.test :refer :all]
-            [c51cc.log :as log]))
+(ns c51cc.logger_test)
+  (require '[clojure.test :refer :all]
+           '[c51cc.logger :as log])
+
+;; TODO: Разобрать, что написала нейросеть
 
 ;; Функция для перехвата логов
 (defn- capture-log [f]
   (let [logs (atom [])]
-    (with-redefs [log/log 
+    (with-redefs [log/logger 
                   (atom (fn [msg]
                           (swap! logs conj msg)))]
       (f)
@@ -27,10 +29,10 @@
     
     (let [logs (capture-log 
                  #(do 
-                    (log/log-error "Тестовая ошибка")
-                    (log/log-warning "Предупреждение")
-                    (log/log-info "Информация")
-                    (log/log-debug "Отладка")))]
+                    (log/error "Тестовая ошибка")
+                    (log/warning "Предупреждение")
+                    (log/info "Информация")
+                    (log/debug "Отладка")))]
       
       (is (= 4 (count logs)) 
           "Должны быть залогированы все сообщения"))))

@@ -1,6 +1,6 @@
 (ns c51cc.logger)
 
-(require '[clojure.string :as str])
+;; (require '[clojure.string :as str])
 
 (declare log-error
          log-warning
@@ -37,31 +37,31 @@
 (defn set-log-level [level]
   (reset! current-log-level level))
 
-(defn debug [msg]
-  (when (can-log :debug)
-    (@logger msg)))
-
 (defn log [msg]
   (when (can-log @current-log-level)
     (@logger msg)))
 
-(defn log-error [msg]
-  (when (can-log :error)
-    (@logger msg)))
-
-(defn log-warning [msg]
-  (when (can-log :warning)
-    (@logger msg)))
-
-(defn log-info [msg]
-  (when (can-log :info)
-    (@logger msg)))
-
-(defn log-debug [msg]
+(defn debug [msg]
   (when (can-log :debug)
     (@logger msg)))
 
-(defn log-trace [msg]
+(defn error [msg]
+  (when (can-log :error)
+    (@logger msg)))
+
+(defn warning [msg]
+  (when (can-log :warning)
+    (@logger msg)))
+
+(defn info [msg]
+  (when (can-log :info)
+    (@logger msg)))
+
+(defn debug [msg]
+  (when (can-log :debug)
+    (@logger msg)))
+
+(defn trace [msg]
   (when (can-log :trace)
     (@logger msg)))
 
