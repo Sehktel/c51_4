@@ -111,81 +111,82 @@
 
 
 
-;; ;; Тесты для токенизации составных выражений
-;; (deftest test-complex-tokenization
-;;   (testing "Токенизация простой main функции"
-;;     (is (= [{:type :void-keyword, :value "void"}
-;;             {:type :main-keyword, :value "main"}
-;;             {:type :open-round-bracket, :value "("}
-;;             {:type :close-round-bracket, :value ")"}
-;;             {:type :open-curly-bracket, :value "{"}
-;;             {:type :return-keyword, :value "return"}
-;;             {:type :int-number, :value 0}
-;;             {:type :semicolon, :value ";"}
-;;             {:type :close-curly-bracket, :value "}"}]
-;;            (lexer/tokenize "void main() { return 0; }")))))
+;; Тесты для токенизации составных выражений
+(deftest test-complex-tokenization
+  (testing "Токенизация простой main функции"
+    (is (= [{:type :void-type-keyword, :value "void"}
+            {:type :main-keyword, :value "main"}
+            {:type :open-round-bracket, :value "("}
+            {:type :close-round-bracket, :value ")"}
+            {:type :open-curly-bracket, :value "{"}
+            {:type :return-control-keyword, :value "return"}
+            {:type :int-number, :value 0}
+            {:type :semicolon-separator, :value ";"}
+            {:type :close-curly-bracket, :value "}"}]
+           (lexer/tokenize "void main() { return 0; }")))))
 
-;; ;; Тесты для специфических ключевых слов микроконтроллера
-;; (deftest test-microcontroller-keywords
-;;   (testing "Токенизация специфических ключевых слов"
-;;     (is (= [{:type :interrupt-keyword, :value "interrupt"}] (lexer/tokenize "interrupt")))
-;;     (is (= [{:type :sfr-keyword, :value "sfr"}] (lexer/tokenize "sfr")))
-;;     (is (= [{:type :sbit-keyword, :value "sbit"}] (lexer/tokenize "sbit")))
-;;     (is (= [{:type :bit-keyword, :value "bit"}] (lexer/tokenize "bit")))))
+;; Тесты для специфических ключевых слов микроконтроллера
+(deftest test-microcontroller-keywords
+  (testing "Токенизация специфических ключевых слов"
+    (is (= [{:type :interrupt-c51-keyword, :value "interrupt"}] (lexer/tokenize "interrupt")))
+    (is (= [{:type :sfr-c51-keyword, :value "sfr"}] (lexer/tokenize "sfr")))
+    (is (= [{:type :sbit-c51-keyword, :value "sbit"}] (lexer/tokenize "sbit")))
+    (is (= [{:type :using-c51-keyword, :value "using"}] (lexer/tokenize "using")))))
+;;:TODO add bit keyword
 
-;; ;; Тесты для обработки идентификаторов
-;; (deftest test-identifier-tokenization
-;;   (testing "Токенизация простых идентификаторов"
-;;     (is (= [{:type :identifier, :value "variable"}] 
-;;            (lexer/tokenize "variable")))
-;;     (is (= [{:type :identifier, :value "hello_world"}] 
-;;            (lexer/tokenize "hello_world")))))
+;; Тесты для обработки идентификаторов
+(deftest test-identifier-tokenization
+  (testing "Токенизация простых идентификаторов"
+    (is (= [{:type :identifier, :value "variable"}] 
+           (lexer/tokenize "variable")))
+    (is (= [{:type :identifier, :value "hello_world"}] 
+           (lexer/tokenize "hello_world")))))
 
-;; ;; Добавим более развернутые тесты
-;; (deftest test-comprehensive-tokenization
-;;   (testing "Сложные сценарии токенизации"
-;;     (is (= [{:type :int-keyword, :value "int"} 
-;;             {:type :identifier, :value "example_func"} 
-;;             {:type :open-round-bracket, :value "("} 
-;;             {:type :identifier, :value "param1"}
-;;             {:type :comma, :value ","} 
-;;             {:type :int-number, :value 42} 
-;;             {:type :close-round-bracket, :value ")"} 
-;;             {:type :semicolon, :value ";"}]
-;;            (lexer/tokenize "int example_func(param1, 42);")))
+;; Добавим более развернутые тесты
+(deftest test-comprehensive-tokenization
+  (testing "Сложные сценарии токенизации"
+    (is (= [{:type :int-type-keyword, :value "int"} 
+            {:type :identifier, :value "example_func"} 
+            {:type :open-round-bracket, :value "("} 
+            {:type :identifier, :value "param1"}
+            {:type :comma-separator, :value ","} 
+            {:type :int-number, :value 42} 
+            {:type :close-round-bracket, :value ")"} 
+            {:type :semicolon-separator, :value ";"}]
+           (lexer/tokenize "int example_func(param1, 42);")))
     
-;;     (is (= [{:type :if-keyword, :value "if"} 
-;;             {:type :open-round-bracket, :value "("} 
-;;             {:type :identifier, :value "x"} 
-;;             {:type :greater-equal, :value ">="} 
-;;             {:type :int-number, :value 10} 
-;;             {:type :and-bitwise, :value "&&"} 
-;;             {:type :identifier, :value "y"} 
-;;             {:type :less, :value "<"} 
-;;             {:type :int-number, :value 100} 
-;;             {:type :close-round-bracket, :value ")"}]
-;;            (lexer/tokenize "if (x >= 10 && y < 100)")))))
+    (is (= [{:type :if-control-keyword, :value "if"} 
+            {:type :open-round-bracket, :value "("} 
+            {:type :identifier, :value "x"} 
+            {:type :greater-equal-comparison-operator, :value ">="} 
+            {:type :int-number, :value 10} 
+            {:type :and-logical-operator, :value "&&"} 
+            {:type :identifier, :value "y"} 
+            {:type :less-comparison-operator, :value "<"} 
+            {:type :int-number, :value 100} 
+            {:type :close-round-bracket, :value ")"}]
+           (lexer/tokenize "if (x >= 10 && y < 100)")))))
 
-;; ;; Добавим тесты для обработки краевых случаев
-;; (deftest test-edge-cases
-;;   (testing "Обработка сложных идентификаторов и чисел"
-;;     (is (= [{:type :identifier, :value "_underscore_var"}] 
-;;            (lexer/tokenize "_underscore_var")))
+;; Добавим тесты для обработки краевых случаев
+(deftest test-edge-cases
+  (testing "Обработка сложных идентификаторов и чисел"
+    (is (= [{:type :identifier, :value "_underscore_var"}] 
+           (lexer/tokenize "_underscore_var")))
     
-;;     (is (= [{:type :hex-number, :value 255}] 
-;;            (lexer/tokenize "0xFF")))
+    (is (= [{:type :hex-number, :value 255}] 
+           (lexer/tokenize "0xFF")))
     
-;;     (is (= [{:type :int-keyword, :value "int"} 
-;;             {:type :identifier, :value "x"} 
-;;             {:type :equal, :value "="} 
-;;             {:type :hex-number, :value 15} 
-;;             {:type :semicolon, :value ";"}]
-;;            (lexer/tokenize "int x = 0xF;"))))
+    (is (= [{:type :int-type-keyword, :value "int"} 
+            {:type :identifier, :value "x"} 
+            {:type :equal-assignment-operator, :value "="} 
+            {:type :hex-number, :value 15} 
+            {:type :semicolon-separator, :value ";"}]
+           (lexer/tokenize "int x = 0xF;"))))
   
-;;   (testing "Обработка составных операторов"
-;;     (is (= [{:type :int-keyword, :value "int"} 
-;;             {:type :identifier, :value "x"} 
-;;             {:type :and-equal, :value "&="} 
-;;             {:type :int-number, :value 10} 
-;;             {:type :semicolon, :value ";"}]
-;;            (lexer/tokenize "int x &= 10;")))))
+  (testing "Обработка составных операторов"
+    (is (= [{:type :int-type-keyword, :value "int"} 
+            {:type :identifier, :value "x"} 
+            {:type :and-equal-assignment-operator, :value "&="} 
+            {:type :int-number, :value 10} 
+            {:type :semicolon-separator, :value ";"}]
+           (lexer/tokenize "int x &= 10;")))))

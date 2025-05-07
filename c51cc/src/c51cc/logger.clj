@@ -10,12 +10,12 @@
          can-log
          debug
          log
-         current-log-level)
+         current-log-level
+         print-current-log-level)
 
-;; :TODO print log level in the beginning of the line within current-log-level
-(defonce logger (atom (fn [msg] (println (str "[" (name @current-log-level) "] " msg)))))
-
-;;(defonce logger (atom (fn [msg] (println msg))))
+(defonce logger 
+  (atom (fn [level msg] 
+    (println (str "[" (name level) "] " msg)))))
 
 (defonce current-log-level (atom :info))
 
@@ -43,7 +43,7 @@
 
 (defn log [& msgs]
   (when (can-log @current-log-level)
-    (@logger (str/join " " (map str msgs)))))
+    (@logger @current-log-level (str/join " " (map str msgs)))))
 
 (defn silent [& msgs])
   ;; (when (can-log :silent)
@@ -51,21 +51,21 @@
 
 (defn error [& msgs]
   (when (can-log :error)
-    (@logger (str/join " " (map str msgs)))))
+    (@logger :error (str/join " " (map str msgs)))))
 
 (defn warning [& msgs]
   (when (can-log :warning)
-    (@logger (str/join " " (map str msgs)))))
+    (@logger :warning (str/join " " (map str msgs)))))
 
 (defn info [& msg]
   (when (can-log :info)
-    (@logger (str/join " " (map str msg)))))
+    (@logger :info (str/join " " (map str msg)))))
 
 (defn debug [& msgs]
   (when (can-log :debug)
-    (@logger (str/join " " (map str msgs)))))
+    (@logger :debug (str/join " " (map str msgs)))))
 
 (defn trace [& msgs]
   (when (can-log :trace)
-    (@logger (str/join " " (map str msgs)))))
+    (@logger :trace (str/join " " (map str msgs)))))
 
