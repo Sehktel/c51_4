@@ -103,7 +103,17 @@
    Абстракция над binary-expression для гибкости и расширяемости."
   parse-binary-expression)
 
-;; Функции для работы с состоянием парсера
+
+;; ==========================================================
+;; Перемещение по вектору токенов
+;; ==========================================================
+
+;; Мое текущее состояние -- это токен, на котором я сейчас нахожусь.
+;; current-token -- это функция, которая возвращает текущий токен.
+;; peek-next-token -- это функция, которая возвращает следующий токен.
+;; advance -- это функция, которая переходит к следующему токену.
+;; Получается, что я могу перемещаться по вектору токенов, по мере необходимости.
+
 (defn current-token [state]
   (when (< (:position state) (count (:tokens state)))
     (nth (:tokens state) (:position state))))
@@ -114,16 +124,97 @@
 
 (defn advance [state]
   (update state :position inc))
+; =========================================================
 
+;; ==========================================================
 ;; Функции-предикаты для проверки токенов
+;; ==========================================================
+
 (defn type-keyword? [token]
   (= :type-keyword (:type token)))
 
+;; Типы переменных
+(defn type-void-keyword?     [token] (= :type :void-type-keyword      (:type token)))
+(defn type-int-keyword?      [token] (= :type :int-type-keyword       (:type token)))
+(defn type-char-keyword?     [token] (= :type :char-type-keyword      (:type token)))
+(defn type-signed-keyword?   [token] (= :type :signed-type-keyword    (:type token)))
+(defn type-unsigned-keyword? [token] (= :type :unsigned-type-keyword  (:type token)))
+
+;; Управляющие конструкции
+(defn type-if-keyword?       [token] (= :type :if-control-keyword     (:type token)))
+(defn type-else-keyword?     [token] (= :type :else-control-keyword   (:type token)))
+(defn type-while-keyword?    [token] (= :type :while-control-keyword  (:type token)))
+(defn type-for-keyword?      [token] (= :type :for-control-keyword    (:type token)))
+(defn type-return-keyword?   [token] (= :type :return-control-keyword (:type token)))
+
+;; Ключевое слово main
+(defn type-main-keyword?     [token] (= :type :main-keyword (:type token)))
+
+;; Специальные ключевые слова микроконтроллера
+(defn interrupt-keyword?  [token] (= :type :interrupt-c51-keyword (:type token)))
+(defn sfr-keyword?        [token] (= :type :sfr-c51-keyword       (:type token)))
+(defn sbit-keyword?       [token] (= :type :sbit-c51-keyword      (:type token)))
+(defn using-keyword?      [token] (= :type :using-c51-keyword     (:type token)))
+
+;; Скобки
+(defn open-round-bracket?     [token] (= :type :open-round-bracket    (:type token)))
+(defn close-round-bracket?    [token] (= :type :close-round-bracket   (:type token)))
+(defn open-curly-bracket?     [token] (= :type :open-curly-bracket    (:type token)))
+(defn close-curly-bracket?    [token] (= :type :close-curly-bracket   (:type token)))
+(defn open-square-bracket?    [token] (= :type :open-square-bracket   (:type token)))
+(defn close-square-bracket?   [token] (= :type :close-square-bracket  (:type token)))
+
+;; Операторы сравнения
+(defn greater?            [token] (= :type :greater-comparison-operator       (:type token)))
+(defn less?               [token] (= :type :less-comparison-operator          (:type token)))
+(defn greater-equal?      [token] (= :type :greater-equal-comparison-operator (:type token)))
+(defn less-equal?         [token] (= :type :less-equal-comparison-operator    (:type token)))
+(defn not-equal?          [token] (= :type :not-equal-comparison-operator     (:type token)))
+
+;; Операторы присваивания
+(defn equal?      [token] (= :type :equal-assignment-operator       (:type token)))
+(defn and-equal?  [token] (= :type :and-equal-assignment-operator   (:type token)))
+(defn or-equal?   [token] (= :type :or-equal-assignment-operator    (:type token)))
+(defn xor-equal?  [token] (= :type :xor-equal-assignment-operator   (:type token)))
+
+;; Битовые операторы
+(defn and-bitwise? [token] (= :type :and-bitwise-operator (:type token)))
+(defn or-bitwise?  [token] (= :type :or-bitwise-operator  (:type token)))
+(defn xor-bitwise? [token] (= :type :xor-bitwise-operator (:type token)))
+(defn not-bitwise? [token] (= :type :not-bitwise-operator (:type token)))
+
+;; Разделители
+(defn semicolon?  [token] (= :type :semicolon-separator (:type token)))
+(defn comma?      [token] (= :type :comma-separator     (:type token)))
+(defn dot?        [token] (= :type :dot-separator       (:type token)))
+(defn colon?      [token] (= :type :colon-separator     (:type token)))
+
+;; Арифметические операторы
+(defn plus       [token] (= :type :plus-math-operator      (:type token)))
+(defn minus      [token] (= :type :minus-math-operator     (:type token)))
+(defn multiply   [token] (= :type :multiply-math-operator  (:type token)))
+(defn divide     [token] (= :type :divide-math-operator    (:type token)))
+(defn modulo     [token] (= :type :modulo-math-operator    (:type token)))
+
+;; Логические операторы
+(defn or-logical         [token] (= :type :or-logical-operator         (:type token)))
+(defn and-logical        [token] (= :type :and-logical-operator        (:type token)))
+(defn equal-logical      [token] (= :type :equal-logical-operator      (:type token)))
+(defn not-equal-logical  [token] (= :type :not-equal-logical-operator  (:type token)))
+(defn not-logical        [token] (= :type :not-logical-operator        (:type token)))
+
+;; Числа
+(defn int-number [token] (= :type :int-number (:type token)))
+(defn hex-number [token] (= :type :hex-number (:type token)))
+
+
+;; ------------- Есть вопросики ----------------------------
 (defn identifier? [token]
   (= :identifier (:type token)))
 
 (defn c51-keyword? [token]
   (= :c51-keyword (:type token)))
+;; ---------------------------------------------------------
 
 ;; Базовые функции парсера
 (defn expect-token [state expected-type expected-value]
