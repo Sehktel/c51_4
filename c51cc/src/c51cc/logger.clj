@@ -12,6 +12,7 @@
          log
          current-log-level)
 
+;; :TODO print log level in the beginning of the line within current-log-level
 (defonce logger (atom (fn [msg] (println (str "[" (name @current-log-level) "] " msg)))))
 
 ;;(defonce logger (atom (fn [msg] (println msg))))
@@ -27,6 +28,9 @@
     :trace 5
 })
 
+(defn print-current-log-level []
+  (println (str "Current log level: " @current-log-level)))
+
 (def log-level-names [:silent :error :warning :info :debug :trace])
 
 (defn can-log [level]
@@ -41,9 +45,9 @@
   (when (can-log @current-log-level)
     (@logger (str/join " " (map str msgs)))))
 
-(defn debug [& msgs]
-  (when (can-log :debug)
-    (@logger (str/join " " (map str msgs)))))
+(defn silent [& msgs])
+  ;; (when (can-log :silent)
+  ;;   (@logger (str/join " " (map str msgs)))))
 
 (defn error [& msgs]
   (when (can-log :error)

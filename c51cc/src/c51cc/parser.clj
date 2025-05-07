@@ -2,7 +2,6 @@
   (:require [c51cc.lexer :as lexer]
             [c51cc.logger :as log]))
 
-
 ;;==================================================
 ;; Определяем структуру AST узлов
 ;;==================================================
@@ -322,26 +321,26 @@
       ;; Возвращаем новое состояние и узел идентификатора
       [(advance state) (->Identifier (:value token))])))
 
-;; Парсер указателей с устранением левой рекурсии
-;; Обрабатывает многоуровневые указатели, например: int***, char**
-;; Входные параметры:
-;;   - state: текущее состояние парсера
-;; Возвращает:
-;;   - Кортеж [новое-состояние тип-указателя]
-(defn parse-pointer-type [state]
-  ;; Итеративный проход по токенам указателей
-  (loop [current-state state
-         pointer-depth 0]
-    (let [token (current-token current-state)]
-      (if (= (:value token) "*")
-        ;; Увеличиваем глубину указателя при встрече '*'
-        (recur (advance current-state) (inc pointer-depth))
-        ;; Парсим базовый тип после всех указателей
-        (let [[final-state base-type] (parse-type current-state)]
-          ;; Создаем вложенные типы указателей через reduce
-          [final-state (reduce (fn [type _] (->PointerType type))
-                             base-type
-                             (range pointer-depth))])))))
+;; ;; Парсер указателей с устранением левой рекурсии
+;; ;; Обрабатывает многоуровневые указатели, например: int***, char**
+;; ;; Входные параметры:
+;; ;;   - state: текущее состояние парсера
+;; ;; Возвращает:
+;; ;;   - Кортеж [новое-состояние тип-указателя]
+;; (defn parse-pointer-type [state]
+;;   ;; Итеративный проход по токенам указателей
+;;   (loop [current-state state
+;;          pointer-depth 0]
+;;     (let [token (current-token current-state)]
+;;       (if (= (:value token) "*")
+;;         ;; Увеличиваем глубину указателя при встрече '*'
+;;         (recur (advance current-state) (inc pointer-depth))
+;;         ;; Парсим базовый тип после всех указателей
+;;         (let [[final-state base-type] (parse-type current-state)]
+;;           ;; Создаем вложенные типы указателей через reduce
+;;           [final-state (reduce (fn [type _] (->PointerType type))
+;;                              base-type
+;;                              (range pointer-depth))])))))
 
 ;; Парсер размерностей массива
 ;; Обрабатывает многомерные массивы, например: int[10][20]
@@ -430,16 +429,15 @@
         state5 (expect-token state4 :separator ";")]
     [state5 (->SfrDecl (:name name-node) addr)]))
 
-;; TODO: добавить поддержку sbit
 ;; (defn parse-sbit-declaration [state]
-;;   (let [state1 (expect-token state :c51-keyword "sbit")
+;;   (let [state1 (expect-token state :sbit-c51-keyword "sbit")
 ;;         [state2 name-node] (parse-identifier state1)
 ;;         state3 (expect-token state2 :assignment-operator "=")
 ;;         [state4 sfr-name] (parse-identifier state3)
 ;;         state5 (expect-token state4 :separator "^")
 ;;         [state6 bit-num] (parse-expression state5)
 ;;         state7 (expect-token state6 :separator ";")]
-;;     [state7 (->SbitDecl (:name name-node) (:name sfr-name) bit-num)]))
+;;     [state7 (->SbitDecl (:name name-node) bit-num)]))
 
 (defn parse-function-params [state]
   (loop [current-state state

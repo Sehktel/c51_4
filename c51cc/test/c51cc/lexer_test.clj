@@ -25,8 +25,6 @@
   (testing "Токенизация ключевого слова main"
     (is (= [{:type :main-keyword, :value "main"}] (lexer/tokenize "main")))))
 
-
-
 ;; Тесты для Специальные ключевые слова микроконтроллера
 (deftest test-c51-keywords
   (testing "Токенизация специальных ключевых слов микроконтроллера"
@@ -191,9 +189,3 @@
 ;;             {:type :int-number, :value 10} 
 ;;             {:type :semicolon, :value ";"}]
 ;;            (lexer/tokenize "int x &= 10;")))))
-
-
-
-
-;; Запуск всех тестов
-;; (run-tests)
