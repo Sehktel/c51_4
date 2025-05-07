@@ -1,6 +1,5 @@
-(ns c51cc.logger)
-
-;; (require '[clojure.string :as str])
+(ns c51cc.logger
+  (:require [clojure.string :as str]))
 
 (declare log-error
          log-warning
@@ -13,8 +12,9 @@
          log
          current-log-level)
 
-;; (defonce logger (atom (fn [msg] (println (str "[" (name @current-log-level) "] " msg)))))
-(defonce logger (atom (fn [msg] (println msg))))
+(defonce logger (atom (fn [msg] (println (str "[" (name @current-log-level) "] " msg)))))
+
+;;(defonce logger (atom (fn [msg] (println msg))))
 
 (defonce current-log-level (atom :info))
 
@@ -37,31 +37,31 @@
 (defn set-log-level [level]
   (reset! current-log-level level))
 
-(defn log [msg]
+(defn log [& msgs]
   (when (can-log @current-log-level)
-    (@logger msg)))
+    (@logger (str/join " " (map str msgs)))))
 
-(defn debug [msg]
+(defn debug [& msgs]
   (when (can-log :debug)
-    (@logger msg)))
+    (@logger (str/join " " (map str msgs)))))
 
-(defn error [msg]
+(defn error [& msgs]
   (when (can-log :error)
-    (@logger msg)))
+    (@logger (str/join " " (map str msgs)))))
 
-(defn warning [msg]
+(defn warning [& msgs]
   (when (can-log :warning)
-    (@logger msg)))
+    (@logger (str/join " " (map str msgs)))))
 
-(defn info [msg]
+(defn info [& msg]
   (when (can-log :info)
-    (@logger msg)))
+    (@logger (str/join " " (map str msg)))))
 
-(defn debug [msg]
+(defn debug [& msgs]
   (when (can-log :debug)
-    (@logger msg)))
+    (@logger (str/join " " (map str msgs)))))
 
-(defn trace [msg]
+(defn trace [& msgs]
   (when (can-log :trace)
-    (@logger msg)))
+    (@logger (str/join " " (map str msgs)))))
 

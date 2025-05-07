@@ -1,6 +1,6 @@
-(ns c51cc.logger_test)
-  (require '[clojure.test :refer :all]
-           '[c51cc.logger :as log])
+(ns c51cc.logger_test
+  (:require [clojure.test :refer :all]
+            [c51cc.logger :as log]))
 
 ;; TODO: Разобрать, что написала нейросеть
 
@@ -70,3 +70,20 @@
       
       ;; Возвращаем начальное состояние
       (log/set-log-level initial-level))))
+
+(deftest multiple-messages-test
+  (testing "Проверка логирования нескольких сообщений"
+    (let [initial-level @log/current-log-level]
+    (log/set-log-level :trace)
+    (let [logs (capture-log 
+                 #(do 
+                    (log/error "Ошибка 1" "Ошибка 2")
+                    (log/warning "Предупреждение 1" "Предупреждение 2")
+                    (log/info "Информация 1" "Информация 2")
+                    (log/debug "Отладка 1" "Отладка 2")
+                    (log/trace "Трассировка 1" "Трассировка 2")))]
+      
+      (is (= 5 (count logs))
+          "Должны быть залогированы все сообщения")
+      ;; Возвращаем начальное состояние
+      (log/set-log-level initial-level)))))
