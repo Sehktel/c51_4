@@ -1,0 +1,49 @@
+# LaTeX Compilation Artifacts for Technical Documentation
+
+# Auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Bibliography auxiliary files
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+
+# Intermediate compilation files
+*.dvi
+*.xdv
+
+# PDF output (optional, depending on workflow)
+*.pdf
+
+# Glossary and index files
+*.glo
+*.gls
+*.glg
+*.idx
+*.ilg
+*.ind
+
+# Specific to AT89S4051 technical documentation
+*.synctex(busy)
+*.pdfsync
+
+# Temporary files
+*.tmp
+*~
+*.swp
+
+# Specific LaTeX build directories
+_minted-*/
+auto/
+
+# Metadata and system files
+.DS_Store
+Thumbs.db 
