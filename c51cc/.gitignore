@@ -12,3 +12,6 @@ pom.xml.asc
 .hgignore
 .hg/
 test.txt
+*.bak
+doc3*.pdf
+mikroc-8051-manual-v100.pdf 

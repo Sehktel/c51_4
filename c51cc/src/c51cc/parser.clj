@@ -43,58 +43,74 @@
 ;;Цикл do-while содержит тело, условие
 (defrecord DoWhileLoop [body condition])
 
-
-
-
+;; Объявление прерывания содержит номер и функцию
+(defrecord InterruptDecl [number func])
+;; Объявление using содержит имя и список переменных
+(defrecord UsingDecl [name vars])
 
 ;; Структура содержит имя и поля
 ;; (defrecord StructType [name fields]) ;; не поддерживается
 ;; Поле структуры содержит тип и имя
 ;; (defrecord StructField [type name]) ;; не поддерживается
 
-
-;; Состояние парсера
-(defrecord ParserState [tokens position])
-
 ;;==================================================
 ;; Парсер
 ;;==================================================
 
 ;; Предварительные объявления всех функций
-(declare parse-program ;; парсер для программы
-        ;;  parse-function-declaration ;; парсер для объявлений функций
-        ;;  parse-function-params ;; парсер для параметров функций
-        ;;  parse-return ;; парсер для операторов return
-        ;;  parse-interrupt-declaration ;; парсер для объявлений прерываний
-        ;;  parse-using-declaration ;; парсер для объявлений using
-        ;;  parse-sfr-declaration ;; парсер для объявлений SFR
-        ;;  parse-sbit-declaration ;; парсер для объявлений SBIT
-        ;;  parse-identifier ;; парсер для идентификаторов
-        ;;  parse-type ;; парсер для типов
-        ;;  expect-token) ;; проверка токена
-         parser ;; Основной парсер -- публичное API
+(declare 
+          current-token               ;;	 Возвращает текущий токен
+          peek-next-token             ;;	 Возвращает следующий токен без перемещения позиции
+          advance                     ;;	 Перемещается к следующему токену
+          expect-token               	;;	 Проверяет, соответствует ли текущий токен ожидаемому типу и значению, и переходит к следующему токену.
+          handle-error 	              ;;	 Обработка ошибок синтаксического анализа, которая может включать вывод сообщений об ошибках и восстановление состояния парсера.
+          parse-array-access 	        ;;	 Обрабатывает доступ к элементам массивов, включая индексацию.
+          parse-array-dimensions    	;;	 Обрабатывает размерности массивов, если они присутствуют в объявлении.
+          parse-array-type           	;;	 Обрабатывает объявления массивов, включая их размерности.
+          parse-assignment 	          ;;	 Обрабатывает операторы присваивания, включая сложные присваивания (например, +=, -=).
+          parse-binary-expression   	;;	 Обрабатывает бинарные выражения с учетом приоритета операторов.
+          parse-bitwise-arithmetic 	  ;;	 Обрабатывает побитовые арифметические операции, включая побитовые И, ИЛИ, исключающее ИЛИ и их комбинации.
+          parse-bitwise-expressions   ;;	 Обрабатывает битовые операции, включая побитовые И, ИЛИ, исключающее ИЛИ и их комбинации.
+          parse-block 	              ;;	 Обрабатывает блоки кода, заключенные в фигурные скобки, и накапливает операторы внутри блока.
+          parse-break 	              ;;	 Обрабатывает оператор break, который используется для выхода из циклов.
+          parse-case 	                ;;	 Обрабатывает оператор case, который используется для выбора одного из нескольких вариантов в зависимости от значения переменной.
+          parse-condition 	          ;;	 Обрабатывает условия для управляющих конструкций, таких как if, while, и for.
+          parse-conditional-operator 	;;	 Обрабатывает тернарный оператор (условный оператор) ? :, если он будет поддерживаться.
+          parse-const 	              ;;	 Обрабатывает константы, включая целочисленные и символьные константы.
+          parse-constant 	            ;;	 Обрабатывает константы, включая целочисленные и символьные константы.
+          parse-continue 	            ;;	 Обрабатывает оператор continue, который используется для перехода к следующей итерации цикла.
+          parse-do-while-loop 	      ;;	 Специфическая процедура для разбора циклов do-while.
+          parse-expression 	          ;;	 Основная функция для разбора выражений, включая бинарные и унарные выражения.
+          parse-for-loop 	            ;;	 Специфическая процедура для разбора циклов for, включая инициализацию, условие и шаг.
+          parse-function-call 	      ;;	 Обрабатывает вызовы функций, включая передачу аргументов и обработку возвращаемых значений.
+          parse-function-declaration 	;;	 Обрабатывает объявления функций, включая параметры, возвращаемый тип и тело функции.
+          parse-function-params   	  ;;	 Обрабатывает список параметров функции, включая их типы и имена.
+          parse-goto 	                ;;	 Обрабатывает оператор goto, который используется для перехода к определенной метке в программе.
+          parse-identifier 	          ;;	 Обрабатывает идентификаторы, проверяя их корректность и возвращая соответствующие узлы.
+          parse-increment-decrement 	;;	 Обрабатывает инкременты и декременты.
+          parse-interrupt-declaration ;;	 Обрабатывает объявления прерываний.
+          parse-label 	              ;;	 Обрабатывает метки, которые используются для обозначения определенных точек в программе.
+          parse-literal 	            ;;	 Обрабатывает различные типы литералов, такие как числовые, символьные и булевы значения.
+          parse-logical-expressions   ;;	 Обрабатывает логические выражения, включая операторы && и ||.
+          parse-nested-block 	        ;;	 Обрабатывает вложенные блоки кода, что может быть полезно для обработки сложных структур.
+          parse-nested-statements   	;;	 Обрабатывает вложенные операторы, включая операторы if, while, и for.
+          parse-primary-expression   	;;	 Обрабатывает простые выражения, такие как литералы, идентификаторы и вложенные выражения в скобках.
+          parse-program 	            ;;	 Основной парсер программы, который принимает список токенов и возвращает структуру программы, содержащую все декларации.
+          parse-register 	            ;;	 Обрабатывает регистры, включая регистры данных и регистры адреса.
+          parse-return 	              ;;	 Обрабатывает оператор return, который используется для возврата значения из функции.
+          parse-sbit-declaration   	  ;;	 Обрабатывает объявления битовых регистров.
+          parse-sfr-declaration   	  ;;	 Обрабатывает объявления SFR.
+          parse-statement 	          ;;	 Универсальная функция для разбора различных операторов, включая объявления функций, переменных, операторов возврата и специфичных для C51 конструкций.
+          parse-switch              	;;	 Обрабатывает оператор switch, который используется для выбора одного из нескольких вариантов в зависимости от значения переменной.
+          parse-type 	                ;;	 Обрабатывает различные типы данных, включая базовые типы и массивы.
+          parse-unary-expression 	    ;;	 Обрабатывает унарные выражения, такие как инкременты и декременты.
+          parse-using-declaration   	;;	 Обрабатывает объявления using, которые используются для указания переменных, которые будут использоваться в программе.
+          parse-while-loop 	          ;;	 Специфическая процедура для разбора циклов while.
+        ) 
 
 
-
-
-
-         parse-expression ;; парсер для выражений
-         parse-binary-expression ;; основной парсер
-         parse-primary-expression ;; парсер для простых выражений
-         parse-statement ;; парсер для операторов
-         parse-block ;; парсер для блоков
-         parse-function-declaration ;; парсер для объявлений функций
-         parse-pointer-type ;; парсер для указателей
-         parse-array-type ;; парсер для массивов
-         parse-function-params ;; парсер для параметров функций
-         parse-return ;; парсер для операторов return
-         parse-interrupt-declaration ;; парсер для объявлений прерываний
-         parse-using-declaration ;; парсер для объявлений using
-         parse-sfr-declaration ;; парсер для объявлений SFR
-         parse-sbit-declaration ;; парсер для объявлений SBIT
-         parse-identifier ;; парсер для идентификаторов
-         parse-type ;; парсер для типов
-         expect-token) ;; проверка токена
+;; Состояние парсера
+(defrecord ParserState [tokens position])
 
 ;; Основной парсер
 (def parse-expression 
@@ -111,6 +127,7 @@
 ;; current-token -- это функция, которая возвращает текущий токен.
 ;; peek-next-token -- это функция, которая возвращает следующий токен.
 ;; advance -- это функция, которая переходит к следующему токену.
+;; expect-token -- это функция, которая ожидает токен с ожидаемым типом и значением.
 ;; Получается, что я могу перемещаться по вектору токенов, по мере необходимости.
 
 (defn current-token [state]
@@ -123,99 +140,8 @@
 
 (defn advance [state]
   (update state :position inc))
-; =========================================================
 
-;; ==========================================================
-;; Функции-предикаты для проверки токенов
-;; ==========================================================
-
-(defn type-keyword? [token]
-  (= :type-keyword (:type token)))
-
-;; Типы переменных
-(defn type-void-keyword?     [token] (= :type :void-type-keyword      (:type token)))
-(defn type-int-keyword?      [token] (= :type :int-type-keyword       (:type token)))
-(defn type-char-keyword?     [token] (= :type :char-type-keyword      (:type token)))
-(defn type-signed-keyword?   [token] (= :type :signed-type-keyword    (:type token)))
-(defn type-unsigned-keyword? [token] (= :type :unsigned-type-keyword  (:type token)))
-
-;; Управляющие конструкции
-(defn type-if-keyword?       [token] (= :type :if-control-keyword     (:type token)))
-(defn type-else-keyword?     [token] (= :type :else-control-keyword   (:type token)))
-(defn type-while-keyword?    [token] (= :type :while-control-keyword  (:type token)))
-(defn type-for-keyword?      [token] (= :type :for-control-keyword    (:type token)))
-(defn type-return-keyword?   [token] (= :type :return-control-keyword (:type token)))
-
-;; Ключевое слово main
-(defn type-main-keyword?     [token] (= :type :main-keyword (:type token)))
-
-;; Специальные ключевые слова микроконтроллера
-(defn interrupt-keyword?  [token] (= :type :interrupt-c51-keyword (:type token)))
-(defn sfr-keyword?        [token] (= :type :sfr-c51-keyword       (:type token)))
-(defn sbit-keyword?       [token] (= :type :sbit-c51-keyword      (:type token)))
-(defn using-keyword?      [token] (= :type :using-c51-keyword     (:type token)))
-
-;; Скобки
-(defn open-round-bracket?     [token] (= :type :open-round-bracket    (:type token)))
-(defn close-round-bracket?    [token] (= :type :close-round-bracket   (:type token)))
-(defn open-curly-bracket?     [token] (= :type :open-curly-bracket    (:type token)))
-(defn close-curly-bracket?    [token] (= :type :close-curly-bracket   (:type token)))
-(defn open-square-bracket?    [token] (= :type :open-square-bracket   (:type token)))
-(defn close-square-bracket?   [token] (= :type :close-square-bracket  (:type token)))
-
-;; Операторы сравнения
-(defn greater?            [token] (= :type :greater-comparison-operator       (:type token)))
-(defn less?               [token] (= :type :less-comparison-operator          (:type token)))
-(defn greater-equal?      [token] (= :type :greater-equal-comparison-operator (:type token)))
-(defn less-equal?         [token] (= :type :less-equal-comparison-operator    (:type token)))
-(defn not-equal?          [token] (= :type :not-equal-comparison-operator     (:type token)))
-
-;; Операторы присваивания
-(defn equal?      [token] (= :type :equal-assignment-operator       (:type token)))
-(defn and-equal?  [token] (= :type :and-equal-assignment-operator   (:type token)))
-(defn or-equal?   [token] (= :type :or-equal-assignment-operator    (:type token)))
-(defn xor-equal?  [token] (= :type :xor-equal-assignment-operator   (:type token)))
-
-;; Битовые операторы
-(defn and-bitwise? [token] (= :type :and-bitwise-operator (:type token)))
-(defn or-bitwise?  [token] (= :type :or-bitwise-operator  (:type token)))
-(defn xor-bitwise? [token] (= :type :xor-bitwise-operator (:type token)))
-(defn not-bitwise? [token] (= :type :not-bitwise-operator (:type token)))
-
-;; Разделители
-(defn semicolon?  [token] (= :type :semicolon-separator (:type token)))
-(defn comma?      [token] (= :type :comma-separator     (:type token)))
-(defn dot?        [token] (= :type :dot-separator       (:type token)))
-(defn colon?      [token] (= :type :colon-separator     (:type token)))
-
-;; Арифметические операторы
-(defn plus       [token] (= :type :plus-math-operator      (:type token)))
-(defn minus      [token] (= :type :minus-math-operator     (:type token)))
-(defn multiply   [token] (= :type :multiply-math-operator  (:type token)))
-(defn divide     [token] (= :type :divide-math-operator    (:type token)))
-(defn modulo     [token] (= :type :modulo-math-operator    (:type token)))
-
-;; Логические операторы
-(defn or-logical         [token] (= :type :or-logical-operator         (:type token)))
-(defn and-logical        [token] (= :type :and-logical-operator        (:type token)))
-(defn equal-logical      [token] (= :type :equal-logical-operator      (:type token)))
-(defn not-equal-logical  [token] (= :type :not-equal-logical-operator  (:type token)))
-(defn not-logical        [token] (= :type :not-logical-operator        (:type token)))
-
-;; Числа
-(defn int-number [token] (= :type :int-number (:type token)))
-(defn hex-number [token] (= :type :hex-number (:type token)))
-
-
-;; ------------- Есть вопросики ----------------------------
-(defn identifier? [token]
-  (= :identifier (:type token)))
-
-(defn c51-keyword? [token]
-  (= :c51-keyword (:type token)))
-;; ---------------------------------------------------------
-
-;; Базовые функции парсера
+;; Ожидаемый токен с ожидаемым типом и значением
 (defn expect-token [state expected-type expected-value]
   ;; Получаем текущий токен из состояния парсера
   (let [token (current-token state)]
@@ -224,6 +150,89 @@
                (= (:value token) expected-value))
       ;; Если токен соответствует, переходим к следующему токену
       (advance state))))
+
+; =========================================================
+
+;; ==========================================================
+;; Функции-предикаты для проверки токенов
+;; ==========================================================
+
+;; Типы переменных
+(defn type-void-keyword?     [token] (= :void-type-keyword                 (:type token)))
+(defn type-int-keyword?      [token] (= :int-type-keyword                  (:type token)))
+(defn type-char-keyword?     [token] (= :char-type-keyword                 (:type token)))
+(defn type-signed-keyword?   [token] (= :signed-type-keyword               (:type token)))
+(defn type-unsigned-keyword? [token] (= :unsigned-type-keyword             (:type token)))
+
+;; Управляющие конструкции
+(defn type-if-keyword?       [token] (= :if-control-keyword                (:type token)))
+(defn type-else-keyword?     [token] (= :else-control-keyword              (:type token)))
+(defn type-while-keyword?    [token] (= :while-control-keyword             (:type token)))
+(defn type-for-keyword?      [token] (= :for-control-keyword               (:type token)))
+(defn type-return-keyword?   [token] (= :return-control-keyword            (:type token)))
+
+;; Ключевое слово main
+(defn type-main-keyword?     [token] (= :main-keyword                      (:type token)))
+
+;; Специальные ключевые слова микроконтроллера
+(defn interrupt-keyword?     [token] (= :interrupt-c51-keyword             (:type token)))
+(defn sfr-keyword?           [token] (= :sfr-c51-keyword                   (:type token)))
+(defn sbit-keyword?          [token] (= :sbit-c51-keyword                  (:type token)))
+(defn using-keyword?         [token] (= :using-c51-keyword                 (:type token)))
+
+;; Скобки
+(defn open-round-bracket?    [token] (= :open-round-bracket                (:type token)))
+(defn close-round-bracket?   [token] (= :close-round-bracket               (:type token)))
+(defn open-curly-bracket?    [token] (= :open-curly-bracket                (:type token)))
+(defn close-curly-bracket?   [token] (= :close-curly-bracket               (:type token)))
+(defn open-square-bracket?   [token] (= :open-square-bracket               (:type token)))
+(defn close-square-bracket?  [token] (= :close-square-bracket              (:type token)))
+
+;; Операторы сравнения
+(defn greater?               [token] (= :greater-comparison-operator       (:type token)))
+(defn less?                  [token] (= :less-comparison-operator          (:type token)))
+(defn greater-equal?         [token] (= :greater-equal-comparison-operator (:type token)))
+(defn less-equal?            [token] (= :less-equal-comparison-operator    (:type token)))
+(defn not-equal?             [token] (= :not-equal-comparison-operator     (:type token)))
+
+;; Операторы присваивания
+(defn equal?                 [token] (= :equal-assignment-operator         (:type token)))
+(defn and-equal?             [token] (= :and-equal-assignment-operator     (:type token)))
+(defn or-equal?              [token] (= :or-equal-assignment-operator      (:type token)))
+(defn xor-equal?             [token] (= :xor-equal-assignment-operator     (:type token)))
+
+;; Битовые операторы
+(defn and-bitwise?           [token] (= :and-bitwise-operator              (:type token)))
+(defn or-bitwise?            [token] (= :or-bitwise-operator               (:type token)))
+(defn xor-bitwise?           [token] (= :xor-bitwise-operator              (:type token)))
+(defn not-bitwise?           [token] (= :not-bitwise-operator              (:type token)))
+
+;; Разделители
+(defn semicolon?             [token] (= :semicolon-separator               (:type token)))
+(defn comma?                 [token] (= :comma-separator                   (:type token)))
+(defn dot?                   [token] (= :dot-separator                     (:type token)))
+(defn colon?                 [token] (= :colon-separator                   (:type token)))
+
+;; Арифметические операторы
+(defn plus?                  [token] (= :plus-math-operator                (:type token)))
+(defn minus?                 [token] (= :minus-math-operator               (:type token)))
+(defn multiply?              [token] (= :multiply-math-operator            (:type token)))
+(defn divide?                [token] (= :divide-math-operator              (:type token)))
+(defn modulo?                [token] (= :modulo-math-operator              (:type token)))
+
+;; Логические операторы
+(defn or-logical?            [token] (= :or-logical-operator               (:type token)))
+(defn and-logical?           [token] (= :and-logical-operator              (:type token)))
+(defn equal-logical?         [token] (= :equal-logical-operator            (:type token)))
+(defn not-equal-logical?     [token] (= :not-equal-logical-operator        (:type token)))
+(defn not-logical?           [token] (= :not-logical-operator              (:type token)))
+
+;; Числа
+(defn int-number?            [token] (= :int-number                        (:type token)))
+(defn hex-number?            [token] (= :hex-number                        (:type token)))
+
+;; Идентификатор
+(defn identifier?            [token] (= :identifier                        (:type token)))
 
 ;; Приоритет операций
 (def operator-precedence
@@ -244,447 +253,151 @@
    "++" 11, "--" 11;; инкремент и декремент
    }) 
 
-;; Проверяем, является ли токен оператором
-(defn binary-operator? [token]
-  (contains? operator-precedence (:value token)))
-
-;; Парсинг бинарных выражений
-(defn parse-binary-expression 
-  ;; Перегрузка функции с двумя вариантами вызова
-  ([state] (parse-binary-expression state 0))
-  ([state min-precedence]
-   ;; Парсим первый операнд (левую часть выражения)
-   (let [[state1 left] (parse-primary-expression state)]
-     ;; Используем рекурсивный цикл для обработки последующих операторов
-     (loop [current-state state1
-            current-left left]
-       (let [op-token (current-token current-state)]
-         ;; Проверяем условия для продолжения парсинга:
-         ;; 1. Есть текущий токен
-         ;; 2. Токен является бинарным оператором
-         ;; 3. Приоритет оператора >= минимальному приоритету
-         (if (and op-token 
-                  (binary-operator? op-token)
-                  (>= (get operator-precedence (:value op-token)) min-precedence))
-           (let [op-precedence (get operator-precedence (:value op-token))
-                 ;; Переходим к следующему токену после оператора
-                 next-state (advance current-state)
-                 ;; Рекурсивно парсим правую часть с повышенным приоритетом
-                 [new-state right] (parse-binary-expression next-state (inc op-precedence))]
-             ;; Продолжаем цикл с новым состоянием и новым левым операндом (бинарное выражение)
-             (recur new-state
-                    (->BinaryExpr (:value op-token) current-left right)))
-           ;; Если условия не выполнены, возвращаем текущее состояние и левый операнд
-           [current-state current-left]))))))
-
-(defn parse-primary-expression [state]
-  ;; Получаем текущий токен из состояния парсера
-  (let [token (current-token state)]
-    ;; Используем условную логику для разбора различных типов примитивных выражений
-    (cond
-      ;; Обработка числовых литералов
-      (= (:type token) :number)
-      [(advance state) (->Literal :number (:value token))]
-      
-      ;; Обработка идентификаторов (переменных)
-      (identifier? token)
-      [(advance state) (->Identifier (:value token))]
-      
-      ;; Обработка скобок и вложенных выражений
-      (= (:type token) :bracket)
-      (if (= (:value token) "(")
-        (let [state1 (advance state)
-              ;; Рекурсивный вызов parse-expression для разбора внутреннего выражения
-              [state2 expr] (parse-expression state1)
-              ;; Проверка закрывающей скобки
-              state3 (expect-token state2 :bracket ")")]
-          ;; Возвращаем состояние после разбора и разобранное выражение
-          [state3 expr])
-        ;; Если скобка не открывающая, возвращаем исходное состояние
-        [state nil])
-      
-      ;; Обработка неизвестных токенов
-      :else
-      [state nil])))
-
-;; Парсер идентификаторов
-;; Преобразует токен идентификатора в абстрактное синтаксическое представление
-;; Входные параметры:
-;;   - state: текущее состояние парсера с токенами
-;; Возвращает:
-;;   - Кортеж [новое-состояние идентификатор] или nil
-(defn parse-identifier [state]
-  ;; Получаем текущий токен из состояния
-  (let [token (current-token state)]
-    ;; Проверяем, является ли токен идентификатором
-    (when (identifier? token)
-      ;; Возвращаем новое состояние и узел идентификатора
-      [(advance state) (->Identifier (:value token))])))
-
-;; ;; Парсер указателей с устранением левой рекурсии
-;; ;; Обрабатывает многоуровневые указатели, например: int***, char**
-;; ;; Входные параметры:
-;; ;;   - state: текущее состояние парсера
-;; ;; Возвращает:
-;; ;;   - Кортеж [новое-состояние тип-указателя]
-;; (defn parse-pointer-type [state]
-;;   ;; Итеративный проход по токенам указателей
-;;   (loop [current-state state
-;;          pointer-depth 0]
-;;     (let [token (current-token current-state)]
-;;       (if (= (:value token) "*")
-;;         ;; Увеличиваем глубину указателя при встрече '*'
-;;         (recur (advance current-state) (inc pointer-depth))
-;;         ;; Парсим базовый тип после всех указателей
-;;         (let [[final-state base-type] (parse-type current-state)]
-;;           ;; Создаем вложенные типы указателей через reduce
-;;           [final-state (reduce (fn [type _] (->PointerType type))
-;;                              base-type
-;;                              (range pointer-depth))])))))
-
-;; Парсер размерностей массива
-;; Обрабатывает многомерные массивы, например: int[10][20]
-;; Входные параметры:
-;;   - state: текущее состояние парсера
-;; Возвращает:
-;;   - Кортеж [новое-состояние список-размерностей]
-(defn parse-array-dimensions [state]
-  ;; Итеративное накопление размерностей
-  (loop [current-state state
-         dimensions []]
-    (let [token (current-token current-state)]
-      (if (= (:value token) "[")
-        (let [state1 (advance current-state)
-              ;; Парсим размер измерения как бинарное выражение
-              [state2 size] (parse-expression state1)
-              ;; Проверяем закрывающую скобку
-              state3 (expect-token state2 :bracket "]")]
-          ;; Рекурсивно накапливаем размерности
-          (recur state3 (conj dimensions size)))
-        ;; Возвращаем накопленные размерности
-        [current-state dimensions]))))
-
-;; Парсер типов массивов
-;; Обрабатывает объявления массивов с различными базовыми типами
-;; Входные параметры:
-;;   - initial-state: начальное состояние парсера
-;; Возвращает:
-;;   - Кортеж [новое-состояние тип-массива]
-(defn parse-array-type [initial-state]
-  ;; Парсим базовый тип массива
-  (let [[state1 base-type] (parse-type initial-state)
-        ;; Парсим размерности массива
-        [state2 dimensions] (parse-array-dimensions state1)]
-    ;; Создаем узел типа массива
-    [state2 (->ArrayType base-type dimensions)]))
-
-;; Парсер типов
-;; Универсальный парсер для различных типов: базовые, указатели, массивы
-;; Входные параметры:
-;;   - state: текущее состояние парсера
-;; Возвращает:
-;;   - Кортеж [новое-состояние распознанный-тип]
-(defn parse-type [state]
-  (let [token (current-token state)]
-    (cond
-      ;; Обработка указателей
-      (= (:value token) "*")
-      (parse-pointer-type state)
-      
-      ;; ;; Структуры
-      ;; (= (:value token) "struct")
-      ;; (parse-struct-type state)
-      
-      ;; Обработка базовых типов
-      (type-keyword? token)
-      (let [base-state (advance state)
-            next-token (current-token base-state)]
-        (if (= (:value next-token) "[")
-          ;; Если после типа идет '[', это массив
-          (parse-array-type state)
-          ;; Иначе просто возвращаем базовый тип
-          [(advance state) (:value token)]))
-      
-      ;; Обработка неизвестных типов
-      :else
-      [state nil])))
-
-;; (defn parse-identifier [state]
-;;   (let [token (current-token state)]
-;;     (when (identifier? token)
-;;       [(advance state) (->Identifier (:value token))])))
-
-;; C51-специфичные парсеры
-;; (defn parse-interrupt-declaration [state]
-;;   (let [state1 (expect-token state :c51-keyword "interrupt")
-;;         [state2 number] (parse-expression state1)
-;;         [state3 func] (parse-function-declaration state2)]
-;;     [state3 (->InterruptDecl number func)]))
-
-(defn parse-sfr-declaration [state]
-  (let [state1 (expect-token state :c51-keyword "sfr")
-        [state2 name-node] (parse-identifier state1)
-        state3 (expect-token state2 :assignment-operator "=")
-        [state4 addr] (parse-expression state3)
-        state5 (expect-token state4 :separator ";")]
-    [state5 (->SfrDecl (:name name-node) addr)]))
-
-;; (defn parse-sbit-declaration [state]
-;;   (let [state1 (expect-token state :sbit-c51-keyword "sbit")
-;;         [state2 name-node] (parse-identifier state1)
-;;         state3 (expect-token state2 :assignment-operator "=")
-;;         [state4 sfr-name] (parse-identifier state3)
-;;         state5 (expect-token state4 :separator "^")
-;;         [state6 bit-num] (parse-expression state5)
-;;         state7 (expect-token state6 :separator ";")]
-;;     [state7 (->SbitDecl (:name name-node) bit-num)]))
-
-(defn parse-function-params [state]
-  (loop [current-state state
-         params []]
-    (let [token (current-token current-state)]
-      (cond
-        (= (:type token) :close-round-bracket)
-        [current-state params]
-        
-        (type-keyword? token)
-        (let [[state1 param-type] (parse-type current-state)
-              [state2 param-name] (parse-identifier state1)
-              next-token (current-token state2)]
-          (if (= (:value next-token) ",")
-            (recur (advance state2) (conj params {:type param-type :name (:name param-name)}))
-            [state2 (conj params {:type param-type :name (:name param-name)})]))
-        
-        :else
-        [current-state params]))))
-
-(defn parse-function-declaration [initial-state]
-  (let [[state1 return-type] (parse-type initial-state)
-        [state2 name-node] (parse-identifier state1)
-        state3 (expect-token state2 :bracket "(")
-        [state4 params] (parse-function-params state3)
-        state5 (expect-token state4 :bracket ")")
-        state6 (expect-token state5 :c51-keyword "interrupt")
-        [state7 interrupt] (parse-identifier state6)
-        state8 (expect-token state7 :c51-keyword "using")
-        [state9 using] (parse-identifier state8)
-        [state10 body] (parse-block state9)]
-    [state10 (->FunctionDecl return-type (:name name-node) params interrupt using body)]))
-
-(defn parse-block [state]
-  (let [
-        ;; Ожидание открывающей фигурной скобки
-        state1 (expect-token state :bracket "{")
-        
-        ;; Рекурсивный парсинг операторов внутри блока
-        [state2 statements] 
-        (loop [current-state state1
-               stmts []]
-          (let [token (current-token current-state)]
-            (if (= (:value token) "}")
-              ;; Завершение при закрывающей скобке
-              [(advance current-state) stmts]
-              ;; Рекурсивное накопление операторов
-              (let [[new-state stmt] (parse-statement current-state)]
-                (recur new-state (conj stmts stmt))))))]
-    
-    ;; Создание блока с накопленными операторами
-    [state2 (->Block statements)]))
-
-;; Парсер оператора возврата (return)
-;; Обрабатывает конструкции вида: return expression;
-;; Входные параметры:
-;;   - state: текущее состояние парсера
-;; Возвращает:
-;;   - Кортеж [новое-состояние узел-возврата]
-(defn parse-return [state]
-  ;; Пропускаем токен 'return'
-  (let [state1 (advance state)
-        ;; Парсим выражение после return как бинарное выражение
-        ;; Это позволяет обрабатывать сложные выражения: return x + y;
-        [state2 expr] (parse-expression state1)
-        
-        ;; Проверяем наличие точки с запятой в конце оператора
-        state3 (expect-token state2 :separator ";")]
-    
-    ;; Создаем узел возврата с разобранным выражением
-    [state3 (->Return expr)]))
-
-;; Универсальный парсер операторов
-;; Распознает различные типы операторов в языке C51
-;; Входные параметры:
-;;   - state: текущее состояние парсера
-;; Возвращает:
-;;   - Кортеж [новое-состояние распознанный-оператор]
-(defn parse-statement [state]
-  ;; Получаем текущий токен для определения типа оператора
-  (let [token (current-token state)]
-    (cond
-      ;; C51-специфичные конструкции: обработка прерываний
-      (and (c51-keyword? token) (= (:value token) "interrupt"))
-      (parse-interrupt-declaration state)
-      
-      ;; C51-специфичные конструкции: объявление SFR-регистров
-      (and (c51-keyword? token) (= (:value token) "sfr"))
-      (parse-sfr-declaration state)
-      
-      ;; C51-специфичные конструкции: объявление битовых регистров
-      (and (c51-keyword? token) (= (:value token) "sbit"))
-      (parse-sbit-declaration state)
-      
-      ;; Стандартные конструкции языка C
-      ;; Оператор возврата
-      (= (:value token) "return")
-      (parse-return state)
-      
-      ;; Объявление функции или переменной
-      (type-keyword? token)
-      (parse-function-declaration state)
-      
-      ;; Обработка выражений по умолчанию
-      ;; Любое выражение, завершающееся точкой с запятой
-      :else
-      (let [
-            ;; Парсим бинарное выражение (может быть присваивание, вызов функции и т.д.)
-            [new-state expr] (parse-expression state)
-            
-            ;; Проверяем наличие точки с запятой в конце выражения
-            final-state (expect-token new-state :separator ";")]
-        
-        ;; Возвращаем состояние после парсинга и распознанное выражение
-        [final-state expr]))))
-
-;; Парсер программы - корневая функция синтаксического анализа
-;; Преобразует последовательность токенов в абстрактное синтаксическое дерево (AST)
-;;
-;; Входные параметры:
-;;   - tokens: Коллекция токенов, полученных от лексического анализатора
-;;
-;; Возвращает:
-;;   - Структуру Program, содержащую список деклараций (функции, объявления и т.д.)
-;;
-;; Ключевые особенности:
-;; - Использует рекурсивный цикл для обхода всех токенов
-;; - Применяет parse-statement для разбора каждой декларации
-;; - Накапливает декларации в векторе
-;; - Обеспечивает полный разбор исходного кода
-(defn parse-program [tokens]
-  ;; Используем рекурсивный цикл для итеративного парсинга
-  (loop [
-         ;; Начальное состояние парсера с позицией 0
-         state (->ParserState tokens 0)
-         
-         ;; Вектор для накопления деклараций
-         declarations []]
-    
-    ;; Условие завершения цикла - достижение конца токенов
-    (if (>= (:position state) (count tokens))
-      ;; Создаем финальную структуру программы со всеми декларациями
-      (->Program declarations)
-      
-      ;; Рекурсивный парсинг очередной декларации
-      (let [
-            ;; Разбираем следующий оператор/декларацию
-            [new-state decl] (parse-statement state)]
-        
-        ;; Продолжаем цикл с обновленным состоянием и добавленной декларацией
-        (recur new-state (conj declarations decl))))))
-
-;; Публичное API
-(defn parse [input]
-  (let [tokens (lexer/tokenize input)]
-    (parse-program tokens)))
-
-(comment
-  ;; Пример использования:
-  (parse "int main() { return 0; }")
-  ;; => #c51cc.parser.Program{
-  ;;      :declarations [#c51cc.parser.FunctionDecl{
-  ;;        :return-type "int"
-  ;;        :name "main"
-  ;;        :params []
-  ;;        :body #c51cc.parser.Block{
-  ;;          :statements [#c51cc.parser.ReturnStmt{
-  ;;            :expr #c51cc.parser.Literal{
-  ;;              :type :number
-  ;;              :value 0}}]}}]})}
-
-  ;; Пример C51-специфичного кода:
-  (parse "
-    sfr P0 = 0x80;
-    sbit LED = P1^5;
-    interrupt 1 void timer0() { P0 = 0xFF; }
-  ")
-)
-
-;;===================================================
-;; Парсеры для указателей и массивов
-;;===================================================
-
-;; ;; Парсер для указателей (устраняем леворекурсию через итерацию)
-;; (defn parse-pointer-type [state]
-;;   (loop [current-state state
-;;          pointer-depth 0]
-;;     (let [token (current-token current-state)]
-;;       (if (= (:value token) "*")
-;;         (recur (advance current-state) (inc pointer-depth))
-;;         (let [[final-state base-type] (parse-type current-state)]
-;;           [final-state (reduce (fn [type _] (->PointerType type))
-;;                              base-type
-;;                              (range pointer-depth))])))))
-
-;; ;; Парсер для массивов (устраняем леворекурсию через итерацию)
-;; (defn parse-array-dimensions [state]
-;;   (loop [current-state state
-;;          dimensions []]
-;;     (let [token (current-token current-state)]
-;;       (if (= (:value token) "[")
-;;         (let [state1 (advance current-state)
-;;               [state2 size] (parse-expression state1)
-;;               state3 (expect-token state2 :bracket "]")]
-;;           (recur state3 (conj dimensions size)))
-;;         [current-state dimensions]))))
-
-;; (defn parse-array-type [initial-state]
-;;   (let [[state1 base-type] (parse-type initial-state)
-;;         [state2 dimensions] (parse-array-dimensions state1)]
-;;     [state2 (->ArrayType base-type dimensions)]))
-
-;;===================================================
-;; Варианты парсеров
-;;===================================================
-;; Версия с расширенной функциональностью
-;; (def parse-expression 
-;;   (fn [state]
-;;     (let [
-;;           ;; Предварительная обработка
-;;           preprocessed-state (preprocess-state state)
-;;          
-;;           ;; Основной парсинг
-;;           [new-state expr] (parse-binary-expression preprocessed-state)
-;;          
-;;           ;; Постобработка и валидация
-;;           validated-expr (validate-expression expr)]
-;;      
-;;       ;; Возвращаем обработанный результат
-;;       [new-state validated-expr])))
-;; ------------------------------------------------
-;; (def parse-expression 
-;;   (fn [state]
-;;     ;; Можно добавить дополнительную логику
-;;     (let [result (parse-binary-expression state)]
-;;       ;; Например, логирование, трассировка
-;;       (println "Parsing expression:" result)
-;;       result)))
-;; ------------------------------------------------
-;; Разные реализации для разных языков/диалектов
-;; (defmulti parse-expression 
-;;   (fn [state dialect] dialect))
-;;
-;; (defmethod parse-expression :c51 
-;;   [state _] 
-;;   (parse-binary-expression state))
-;;
-;; (defmethod parse-expression :forth 
-;;   [state _] 
-;;   (parse-forth-expression state))
+;; Разбор программы:
+(defn parse-program [state] (state))
+;; Основная функция, которая принимает список токенов и возвращает структуру программы, содержащую все декларации.
+;; Разбор операторов:
+(defn parse-statement [state] (state))
+;; Универсальная функция для разбора различных операторов, включая объявления функций, переменных, операторов возврата и специфичных для C51 конструкций.
+;; Разбор объявлений функций:
+(defn parse-function-declaration [state] (state))
+;; Обрабатывает объявления функций, включая параметры, возвращаемый тип и тело функции.
+;; Разбор параметров функции:
+(defn parse-function-params [state] (state))
+;; Обрабатывает список параметров функции, включая их типы и имена.
+;; Разбор блоков кода:
+(defn parse-block [state] (state))
+;; Обрабатывает блоки кода, заключенные в фигурные скобки, и накапливает операторы внутри блока.
+;; Основная функция для разбора выражений, включая бинарные и унарные выражения.
+(defn parse-binary-expression [state] (state))
+;; Обрабатывает бинарные выражения с учетом приоритета операторов.
+(defn parse-primary-expression [state] (state))
+;; Обрабатывает простые выражения, такие как литералы, идентификаторы и вложенные выражения в скобках.
+;; Разбор операторов возврата:
+(defn parse-return [state] (state))
+;; Обрабатывает оператор возврата, включая выражение, которое возвращается.
+;; Разбор специальных конструкций:
+(defn parse-interrupt-declaration [state] (state))
+;; Обрабатывает объявления прерываний.
+(defn parse-sfr-declaration [state] (state))
+;; Обрабатывает объявления SFR.
+(defn parse-sbit-declaration [state] (state))
+;; Обрабатывает объявления битовых регистров.
+;; Разбор типов:
+(defn parse-type [state] (state))
+;; Обрабатывает различные типы данных, включая базовые типы и массивы.
+(defn parse-array-type [state] (state))
+;; Обрабатывает объявления массивов, включая их размерности.
+;; Разбор идентификаторов:
+(defn parse-identifier [state] (state))
+;; Обрабатывает идентификаторы, проверяя их корректность и возвращая соответствующие узлы.
+;; Разбор выражений с использованием операторов:
+(defn parse-unary-expression [state] (state))
+;; Обрабатывает унарные выражения, такие как инкременты и декременты.
+;; Разбор размерностей массивов:
+(defn parse-array-dimensions [state] (state))
+;; Обрабатывает размерности массивов, если они присутствуют в объявлении.
+;; Разбор выражений с функциями:
+(defn parse-function-call [state] (state))
+;; Обрабатывает вызовы функций, включая передачу аргументов.
+;; Разбор литералов:
+(defn parse-literal [state] (state))
+;; Обрабатывает различные типы литералов, такие как числовые, символьные и булевы значения.
+;; Разбор операторов присваивания:
+(defn parse-assignment [state] (state))
+;; Обрабатывает операторы присваивания, включая сложные присваивания (например, +=, -=).
+;; Разбор условий:
+(defn parse-condition [state] (state))
+;; Обрабатывает условия для управляющих конструкций, таких как if, while, и for.
+;; Разбор циклов:
+(defn parse-for-loop [state] (state))
+;; Специфическая процедура для разбора циклов for, включая инициализацию, условие и шаг.
+(defn parse-while-loop [state] (state))
+;; Специфическая процедура для разбора циклов while.
+(defn parse-do-while-loop [state] (state))
+;; Специфическая процедура для разбора циклов do-while.
+;; Разбор операторов управления потоком:
+(defn parse-break [state] (state))
+;; Обрабатывает оператор break, который используется для выхода из циклов.
+(defn parse-continue [state] (state))
+;; Обрабатывает оператор continue, который используется для перехода к следующей итерации цикла.
+;; Разбор блоков с вложенными конструкциями:
+(defn parse-nested-block [state] (state))
+;; Обрабатывает вложенные блоки кода, что может быть полезно для обработки сложных структур.
+;; Обработка ошибок:
+(defn handle-error [state] (state))
+;; Процедура для обработки ошибок синтаксического анализа, которая может включать вывод сообщений об ошибках и восстановление состояния парсера.
+;; Разбор выражений с массивами:
+(defn parse-array-access [state] (state))
+;; Обрабатывает доступ к элементам массивов, включая индексацию.
+;; Разбор операторов:
+(defn parse-conditional-operator [state] (state))
+;; Обрабатывает тернарный оператор (условный оператор) ? :, если он будет поддерживаться.
+;; Разбор битовых операций:
+(defn parse-bitwise-expressions [state] (state))
+;; Обрабатывает выражения, использующие побитовые операторы, такие как &, |, ^.
+;; Разбор логических выражений:
+(defn parse-logical-expressions [state] (state))
+;; Обрабатывает логические выражения, включая операторы && и ||.
+;; Разбор операторов инкремента и декремента:
+(defn parse-increment-decrement [state] (state))
+;; Обрабатывает операторы ++ и --, как префиксные, так и постфиксные.
+;; Обработка специфичных для C51 конструкций:
+(defn parse-using-declaration [state] (state))
+;; Обрабатывает конструкции using, которые могут быть специфичными для C51.
+;; Разбор выражений с константами:
+(defn parse-constant [state] (state))
+;; Обрабатывает константы, такие как #define или другие предопределенные значения, если они будут поддерживаться.
+;; Разбор выражений с побитовой арифметикой:
+(defn parse-bitwise-arithmetic [state] (state))
+;; Обрабатывает выражения, использующие побитовые арифметические операции, такие как сдвиги (<<, >>).
+;; Разбор конструкций с goto:
+(defn parse-goto [state] (state))
+;; Обрабатывает оператор goto, если он будет поддерживаться, включая метки.
+;; Разбор операторов switch:
+(defn parse-switch [state] (state))
+;; Обрабатывает конструкции switch, включая case и default.
+;; Разбор вложенных конструкций:
+(defn parse-nested-statements [state] (state))
+;; Обрабатывает вложенные операторы, такие как вложенные if, for, и т.д.
+;; Разбор выражений с const:
+(defn parse-const [state] (state))
+;; Обрабатывает спецификатор const, если он будет поддерживаться.
+;; Разбор выражений с register:
+(defn parse-register [state] (state))
+;; Обрабатывает спецификатор register, если он будет поддерживаться.
+;; Разбор выражений с extern:
+(defn parse-extern [state] (state))
+;; Обрабатывает спецификатор extern, если он будет поддерживаться.
+;; Разбор выражений с static:
+(defn parse-static [state] (state))
+;; Обрабатывает спецификатор static, если он будет поддерживаться.
+;; Разбор выражений с inline:
+(defn parse-inline [state] (state))
+;; Обрабатывает конструкции, которые могут быть помечены как inline, если это будет поддерживаться.
+;; Разбор выражений с restrict:
+(defn parse-restrict [state] (state))
+;; Обрабатывает спецификатор restrict, если он будет поддерживаться.
+;; Разбор выражений с typedef:
+(defn parse-typedef [state] (state))
+;; Обрабатывает объявления типов с использованием typedef, если это будет поддерживаться.
+;; Разбор выражений с union:
+(defn parse-union [state] (state))
+;; Разбор выражений с attribute:
+(defn parse-attribute [state] (state))
+;; Обрабатывает атрибуты функций или переменных, если они будут поддерживаться.
+;; Разбор выражений с case и default:
+(defn parse-case [state] (state))
+;; Обрабатывает конструкции case и default в switch.
+;; Разбор выражений с label:
+(defn parse-label [state] (state))
+;; Обрабатывает метки для операторов goto.
+;; Разбор выражений с do-while:
+(defn parse-do-while [state] (state))
+;; Обрабатывает конструкции do-while.
+;; Разбор выражений с for:
+(defn parse-for [state] (state))
+;; Обрабатывает конструкции for, включая инициализацию, условие и шаг.
+;; Разбор выражений с while:
+(defn parse-while [state] (state))
+;; Обрабатывает конструкции while.

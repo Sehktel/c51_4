@@ -112,7 +112,6 @@
       
       void main() {
         int i;
-        int *ptr;
         int arr[10];
         
         for(i = 0; i < 10; i++) {
@@ -120,8 +119,8 @@
         }
         
         while(1) {
-          ptr = &arr[0];
-          *ptr = 42;
+          P0 = 0x00;
+          LED = !LED;
         }
       }"
           result (parse-str program)]
@@ -141,6 +140,3 @@
       (testing "Главная функция"
         (is (= "main" (get-in result [:declarations 4 :name])))
         (is (= "void" (get-in result [:declarations 4 :return-type])))))))
-
-;; Запуск тестов
-(run-tests)
