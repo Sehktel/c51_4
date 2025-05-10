@@ -190,3 +190,59 @@
             {:type :int-number, :value 10} 
             {:type :semicolon-separator, :value ";"}]
            (lexer/tokenize "int x &= 10;")))))
+
+;; Тесты для инкремента и декремента
+(deftest test-increment-decrement-tokenization
+  (testing "Токенизация операторов инкремента и декремента"
+    (testing "Префиксный инкремент"
+      (is (= [{:type :increment-operator, :value "++"}
+              {:type :identifier, :value "x"}] 
+             (lexer/tokenize "++x"))))
+    
+    (testing "Постфиксный инкремент"
+      (is (= [{:type :identifier, :value "x"}
+              {:type :increment-operator, :value "++"}] 
+             (lexer/tokenize "x++"))))
+    
+    (testing "Префиксный декремент"
+      (is (= [{:type :decrement-operator, :value "--"}
+              {:type :identifier, :value "y"}] 
+             (lexer/tokenize "--y"))))
+    
+    (testing "Постфиксный декремент"
+      (is (= [{:type :identifier, :value "y"}
+              {:type :decrement-operator, :value "--"}] 
+             (lexer/tokenize "y--"))))
+    
+    (testing "Сложные выражения с инкрементом и декрементом"
+      (is (= [{:type :int-type-keyword, :value "int"}
+              {:type :identifier, :value "x"}
+              {:type :equal-assignment-operator, :value "="}
+              {:type :increment-operator, :value "++"}
+              {:type :identifier, :value "y"}
+              {:type :semicolon-separator, :value ";"}]
+             (lexer/tokenize "int x = ++y;")))
+      
+      (is (= [{:type :int-type-keyword, :value "int"}
+              {:type :identifier, :value "x"}
+              {:type :equal-assignment-operator, :value "="}
+              {:type :identifier, :value "y"}
+              {:type :increment-operator, :value "++"}
+              {:type :semicolon-separator, :value ";"}]
+             (lexer/tokenize "int x = y++;")))
+      
+      (is (= [{:type :int-type-keyword, :value "int"}
+              {:type :identifier, :value "x"}
+              {:type :equal-assignment-operator, :value "="}
+              {:type :decrement-operator, :value "--"}
+              {:type :identifier, :value "y"}
+              {:type :semicolon-separator, :value ";"}]
+             (lexer/tokenize "int x = --y;")))
+      
+      (is (= [{:type :int-type-keyword, :value "int"}
+              {:type :identifier, :value "x"}
+              {:type :equal-assignment-operator, :value "="}
+              {:type :identifier, :value "y"}
+              {:type :decrement-operator, :value "--"}
+              {:type :semicolon-separator, :value ";"}]
+             (lexer/tokenize "int x = y--;"))))))

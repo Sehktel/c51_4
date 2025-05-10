@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file. This change
 - Add a new arity to `make-widget-async` to provide a different widget shape.
 
 ## [0.1.1] - 2025-05-06
+### Parser
+- Двойное отрицане и сложные унарные операции не поддерживаются !!x -- это что-то пока недоступное.
+- Добавлени инкримент и дикремент 
+- исправлена токенизация 
+
+## [0.1.1] - 2025-05-06
 ### Changed
 - Documentation on how to make the widgets.
 
