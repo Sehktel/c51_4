@@ -1,8 +1,8 @@
-(ns c51cc.preprocessor)
-(require '[clojure.string :as str]
-         '[c51cc.logger :as log]
-         '[c51cc.parser :as parser]
-         '[c51cc.lexer :as lexer])
+(ns c51cc.preprocessor
+  (:require [clojure.string :as str]
+            [c51cc.logger :as log]
+            [c51cc.parser :as parser]
+            [c51cc.lexer :as lexer]))
 
 (def preprocessor-rules {
     :include "#include"
@@ -25,9 +25,17 @@
     :defined "#defined"
 })
 
-(defn remove-comments [code]
-    (str/replace code #"//.*" "")
-    (str/replace code #"/\*.*\*/" ""))
+(defn remove-comments 
+  "Удаляет комментарии из кода.
+   Поддерживает:
+   - Однострочные комментарии (//)
+   - Многострочные комментарии (/* */)
+   
+   Возвращает код без комментариев"
+  [code]
+  (-> code
+      (str/replace #"//.*?(?:\r\n|\r|\n|$)" "\n")  ;; Удаляем однострочные комментарии, сохраняя перенос строки
+      (str/replace #"/\*(?s).*?\*/" ""))) ;; Удаляем многострочные комментарии с поддержкой переносов
 
 
 (defn remove-whitespace [code]
