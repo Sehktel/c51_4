@@ -2,7 +2,9 @@
   (:gen-class)
   (:require [c51cc.preprocessor :as preprocessor]
             [c51cc.lexer :as lexer]
+            [c51cc.logger :as log]
             [c51cc.parser :as parser]
+            [c51cc.ast :as ast]
             [clojure.java.io :as io]))
 
 (defn -main
@@ -45,3 +47,6 @@
      (catch Exception e
        (println "Ошибка при обработке файла:" (.getMessage e))
        nil))))
+
+(defn pretty-print-ast [ast]
+  (ast/pretty-print ast))

@@ -412,3 +412,40 @@
       (is (= "x" (get-in result [:ast :expr :name])))
       (is (= 2 (count (get-in result [:ast :cases]))))
       (is (some? (get-in result [:ast :default]))))))
+
+(testing "Signed and unsigned variable declarations"
+    (let [tokens-unsigned-int (lexer/tokenize "unsigned int x;")
+          state-unsigned-int (parser/->ParserState tokens-unsigned-int 0)
+          result-unsigned-int (parser/parse-statement state-unsigned-int)
+          
+          tokens-signed-int (lexer/tokenize "signed int y;")
+          state-signed-int (parser/->ParserState tokens-signed-int 0)
+          result-signed-int (parser/parse-statement state-signed-int)
+          
+          tokens-unsigned-char (lexer/tokenize "unsigned char a;")
+          state-unsigned-char (parser/->ParserState tokens-unsigned-char 0)
+          result-unsigned-char (parser/parse-statement state-unsigned-char)
+          
+          tokens-signed-char (lexer/tokenize "signed char b;")
+          state-signed-char (parser/->ParserState tokens-signed-char 0)
+          result-signed-char (parser/parse-statement state-signed-char)]
+      
+      (is (map? result-unsigned-int) "Should return a state map for unsigned int")
+      (is (contains? result-unsigned-int :ast) "Should contain AST for unsigned int")
+      (is (= :unsigned-int (get-in result-unsigned-int [:ast :type])) "Should parse unsigned int type")
+      (is (= "x" (get-in result-unsigned-int [:ast :name])) "Should parse unsigned int variable name")
+      
+      (is (map? result-signed-int) "Should return a state map for signed int")
+      (is (contains? result-signed-int :ast) "Should contain AST for signed int")
+      (is (= :signed-int (get-in result-signed-int [:ast :type])) "Should parse signed int type")
+      (is (= "y" (get-in result-signed-int [:ast :name])) "Should parse signed int variable name")
+      
+      (is (map? result-unsigned-char) "Should return a state map for unsigned char")
+      (is (contains? result-unsigned-char :ast) "Should contain AST for unsigned char")
+      (is (= :unsigned-char (get-in result-unsigned-char [:ast :type])) "Should parse unsigned char type")
+      (is (= "a" (get-in result-unsigned-char [:ast :name])) "Should parse unsigned char variable name")
+      
+      (is (map? result-signed-char) "Should return a state map for signed char")
+      (is (contains? result-signed-char :ast) "Should contain AST for signed char")
+      (is (= :signed-char (get-in result-signed-char [:ast :type])) "Should parse signed char type")
+      (is (= "b" (get-in result-signed-char [:ast :name])) "Should parse signed char variable name")))

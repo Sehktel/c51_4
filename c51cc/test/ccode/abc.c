@@ -1,9 +1,10 @@
 void main(void) {
-    unsigned char a;
+    char a;
     unsigned char b;
-    unsigned char c;
+    unsigned int c, d;
     a = 1;
     b = 2;
     c = a + b;
+    d = c + 1;
 }
 

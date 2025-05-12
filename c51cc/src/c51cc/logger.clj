@@ -1,6 +1,7 @@
 (ns c51cc.logger
   (:require [clojure.string :as str]))
 
+
 (declare log-error
          log-warning
          log-info 

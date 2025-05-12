@@ -109,7 +109,7 @@
     ;;     0x[0-9A-Fa-f]+|  ;; Шестнадцатеричные числа
     ;;     \d+        ;; Десятичные числа
     ;;     " 
-        tokens (re-seq token-pattern input)]
+    tokens (re-seq token-pattern input)]
     (if (= (count tokens) 1)
       (let [token (first tokens)]
         (cond
