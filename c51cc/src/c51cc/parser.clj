@@ -1,7 +1,5 @@
 (ns c51cc.parser
-  (:require 
-  ;;[c51cc.lexer :as lexer]
-            [c51cc.logger :as log]
+  (:require [c51cc.logger :as log]
             [c51cc.ast.nodes :as nodes]))
 
 ;;==================================================
@@ -65,9 +63,8 @@
           handle-error 	              ;;	 Обработка ошибок синтаксического анализа, которая может включать вывод сообщений об ошибках и восстановление состояния парсера.
           parse-function-declaration  ;;	 Обрабатывает объявления функций, включая параметры, возвращаемый тип и тело функции.
           parse-function-params   	  ;;	 Обрабатывает список параметров функции, включая их типы и имена.
-          parse-main-declaration      ;;  Обрабатывает объявление функции main
-          
-          
+          parse-main-declaration      ;;   Обрабатывает объявление функции main
+          format-declaration-error    ;;	 Форматирует ошибку объявления переменной.
           
           parse-array-access 	        ;;	 Обрабатывает доступ к элементам массивов, включая индексацию.
           parse-array-dimensions    	;;	 Обрабатывает размерности массивов, если они присутствуют в объявлении.
@@ -114,13 +111,6 @@
 
 ;; Состояние парсера
 (defrecord ParserState [tokens position])
-
-;; Основной парсер
-;; (def parse-expression 
-;;   "Основной парсер выражений. 
-;;    Абстракция над binary-expression для гибкости и расширяемости."
-;;   parse-binary-expression)
-
 
 ;; ==========================================================
 ;; Перемещение по вектору токенов
@@ -196,10 +186,6 @@
     (println (format "Type: %-20s Value: %s" 
                     (name (:type token))
                     (:value token)))))
-;; Использование:
-;; (print-token (current-token test-state))
-
-
 
 
 ; =========================================================
@@ -372,9 +358,6 @@
 (defn parser [state]
   (parse-program state))
 
-
-;;(defn parse-main-function [state] (state))
-
 (defn parse-program
   "Основной парсер программы.
    Принимает вектор токенов и возвращает AST программы."
@@ -384,7 +367,8 @@
         fsm-state (atom {:stage :start 
                         :declarations []})]
     (loop [current-state initial-state]
-      (let [token (current-token current-state)]
+  
+    (let [token (current-token current-state)]
         (log/debug "parse-program: Processing token:" 
                   (when token 
                     {:type (:type token) 
@@ -821,7 +805,7 @@
   "Универсальная функция для разбора различных операторов, 
    включая объявления функций, переменных, операторов возврата 
    и специфичных для C51 конструкций."
-  [state]
+  [state] 
   (log/trace "Entering parse-statement with state:" 
              {:position (:position state)
               :current-token (when-let [t (current-token state)] 
@@ -1179,3 +1163,13 @@
                      {:context "Expected identifier after using keyword"})))
       (handle-error state
                    {:context "Expected 'using' keyword"}))))
+
+(defn format-declaration-error
+  "Форматирует ошибку объявления переменной.
+   Возвращает строку с ошибкой."
+   [token location]
+  (log/error (format "Error: Variable declaration '%s' must be at the beginning of the %s. 
+           Found at position %d"
+          (:value token)
+          location
+          (:position token))))

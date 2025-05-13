@@ -1,8 +1,9 @@
 void main(void) {
     char a;
+    a = 1;
+
     unsigned char b;
     unsigned int c, d;
-    a = 1;
     b = 2;
     c = a + b;
     d = c + 1;

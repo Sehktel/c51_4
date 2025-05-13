@@ -13,6 +13,11 @@
   [& args]
   (println "Hello, World!"))
 
+(defn test-function
+  "Тестовая функция"
+  []
+  (println "Hello, World!"))
+
 (defn get-test-file-tokens
   "Получает токены из файла.
    
@@ -29,6 +34,7 @@
    Возвращает вектор токенов или nil в случае ошибки"
   ([]
    (get-test-file-tokens (System/getenv "TEST_FILE")))
+  ;; TODO: изменить println на log/debug
   ([file-path]
    (try
      (when file-path
