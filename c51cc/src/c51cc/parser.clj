@@ -1,5 +1,6 @@
 (ns c51cc.parser
-  (:require [c51cc.lexer :as lexer]
+  (:require 
+  ;;[c51cc.lexer :as lexer]
             [c51cc.logger :as log]
             [c51cc.ast.nodes :as nodes]))
 
@@ -330,7 +331,7 @@
                "\n  - Предыдущий AST:" (:ast state))
     
     (loop [current-state state]
-      (let [token (current-token current-state)]
+      ;;(let [token (current-token current-state)]
         (case @fsm-state
           :initial 
           (do 
@@ -366,13 +367,13 @@
           :done 
           (do
             (log/debug "Восстановление завершено")
-            (step-next current-state)))))))
+            (step-next current-state))))));;)
 
 (defn parser [state]
   (parse-program state))
 
 
-(defn parse-main-function [state] (state))
+;;(defn parse-main-function [state] (state))
 
 (defn parse-program
   "Основной парсер программы.
@@ -403,7 +404,7 @@
           (close-curly-bracket? token)
           (if-let [next-state (step-next current-state)]
             (do
-              (log/debug "parse-program: Skipping closing brace, moving to position:" 
+              (log/trace "parse-program: Skipping closing curly brace, moving to position:" 
                         (:position next-state))
               (recur next-state))
             ;; Если step-next вернул nil, значит достигнут конец файла
@@ -419,6 +420,12 @@
             (if (:ast decl-state)
               (do 
                 (swap! fsm-state update :declarations conj (:ast decl-state))
+              ;; swap! - атомарное изменение состояния
+              ;; fsm-state - атом (изменяемая ссылка)
+              ;; update - функция обновления структуры
+              ;; :declarations - ключ в структуре состояния
+              ;; conj - функция добавления элемента в коллекцию
+              ;; (:ast decl-state) - новый элемент для добавления
                 (recur decl-state))
               (handle-error current-state 
                           {:context "Failed to parse declaration"
@@ -873,6 +880,22 @@
                                                    {:type (:type nt) :value (:value nt)}))
                 (handle-error type-state)))))
   
+        ;; Добавить здесь обработку for цикла
+        (type-for-keyword? token)
+        (let [[new-state ast] (parse-for-loop state)]
+          (if ast
+            (assoc new-state :ast ast)
+            (handle-error state 
+                        {:context "Failed to parse for loop"})))
+
+        ;; Добавить здесь обработку while цикла
+        (type-while-keyword? token)
+        (let [[new-state ast] (parse-while-loop state)]
+          (if ast
+            (assoc new-state :ast ast)
+            (handle-error state 
+                        {:context "Failed to parse while loop"})))
+        
         ;; Оператор присваивания (идентификатор = выражение;)
         (and (identifier? token)
              (equal? next-token))

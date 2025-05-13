@@ -1,0 +1,33 @@
+parser
+└── parse-program
+    ├── parse-statement
+    │   ├── parse-type
+    │   ├── parse-main-declaration
+    │   │   ├── parse-function-params
+    │   │   └── parse-block
+    │   │       └── parse-statement (рекурсия!)
+    │   ├── parse-variable-declarations
+    │   └── parse-function-declaration
+    │       ├── parse-function-params
+    │       ├── parse-interrupt-declaration
+    │       ├── parse-using-declaration
+    │       └── parse-block
+    │           └── parse-statement (рекурсия!)
+    ├── parse-for-loop
+    │   ├── parse-expression
+    │   └── parse-block
+    └── parse-while-loop
+        ├── parse-expression
+        └── parse-block
+├── parse-assignment
+│   └── parse-expression
+│       └── parse-binary-expression
+│           └── parse-primary-expression
+├── parse-sfr-declaration
+└── parse-sbit-declaration
+
+Дополнительные ветви для выражений:
+parse-expression
+└── parse-binary-expression
+    └── parse-primary-expression
+        └── parse-expression (потенциальная рекурсия для скобок)
