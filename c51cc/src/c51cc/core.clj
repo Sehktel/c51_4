@@ -5,7 +5,8 @@
             [c51cc.logger :as log]
             [c51cc.parser :as parser]
             [c51cc.ast :as ast]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [clojure.string :as str]))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -49,4 +50,8 @@
        nil))))
 
 (defn pretty-print-ast [ast]
-  (ast/pretty-print ast))
+  (let [result (ast/pretty-print ast)]
+    ;; Разделяем результат на строки и печатаем каждую отдельно
+    (doseq [line (str/split-lines result)]
+      (println line))
+    result))
