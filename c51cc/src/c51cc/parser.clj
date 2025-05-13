@@ -563,62 +563,58 @@
                (when token {:type (:type token) :value (:value token)})
                "Position:" (:position state))
     
-    ;; Если текущий токен - main, используем специализированный парсер
-    (if (type-main-keyword? (current-token state))
-      (parse-main-declaration state)
-      
-      (let [return-type-token (current-token state)
-            return-type (cond 
-                         (type-void-keyword? return-type-token) :void
-                         (type-int-keyword? return-type-token) :int
-                         (type-char-keyword? return-type-token) :char
-                         (type-unsigned-keyword? return-type-token) :unsigned
-                         (type-signed-keyword? return-type-token) :signed
-                         :else nil)
-            
-            ;; Шаг 2: Переходим к имени функции
-            name-state (step-next state)
-            name-token (current-token name-state)
-            
-            ;; Шаг 3: Проверяем открывающую скобку параметров
-            params-state (step-next name-state)
-            params-token (current-token params-state)]
-        
-        (if (and return-type 
-                 (identifier? name-token)
-                 (open-round-bracket? params-token))
-          (let [[params-list new-state] (parse-function-params (step-next params-state))
-                interrupt-decl (when (interrupt-keyword? (current-token new-state))
-                               (parse-interrupt-declaration new-state))
-                using-decl (when (using-keyword? (current-token (or (:state interrupt-decl) new-state)))
-                            (parse-using-declaration (or (:state interrupt-decl) new-state)))
-                body-state (parse-block (or (:state using-decl) 
-                                          (:state interrupt-decl) 
-                                          new-state))]
-            
-            (if (:ast body-state)
-              (assoc body-state :ast 
-                     (nodes/->FunctionDeclaration 
-                       return-type
-                       (:value name-token)
-                       params-list
-                       (:ast interrupt-decl)
-                       (:ast using-decl)
-                       (:ast body-state)))
-              (handle-error state 
-                          {:context "Failed to parse function body"
-                           :token (current-token body-state)})))
+    (let [return-type-token (current-token state)
+          return-type (cond 
+                       (type-void-keyword? return-type-token) :void
+                       (type-int-keyword? return-type-token) :int
+                       (type-char-keyword? return-type-token) :char
+                       (type-unsigned-keyword? return-type-token) :unsigned
+                       (type-signed-keyword? return-type-token) :signed
+                       :else nil)
           
-          (handle-error state 
-                      {:context "Invalid function declaration"
-                       :expected "return-type identifier ( params )"
-                       :found {:return-type return-type
-                              :name (when name-token 
-                                     {:type (:type name-token)
-                                      :value (:value name-token)})
-                              :params (when params-token 
-                                      {:type (:type params-token)
-                                       :value (:value params-token)})}}))))))
+          ;; Шаг 2: Переходим к имени функции
+          name-state (step-next state)
+          name-token (current-token name-state)
+          
+          ;; Шаг 3: Проверяем открывающую скобку параметров
+          params-state (step-next name-state)
+          params-token (current-token params-state)]
+      
+      (if (and return-type 
+               (identifier? name-token)
+               (open-round-bracket? params-token))
+        (let [[params-list new-state] (parse-function-params (step-next params-state))
+              interrupt-decl (when (interrupt-keyword? (current-token new-state))
+                             (parse-interrupt-declaration new-state))
+              using-decl (when (using-keyword? (current-token (or (:state interrupt-decl) new-state)))
+                          (parse-using-declaration (or (:state interrupt-decl) new-state)))
+              body-state (parse-block (or (:state using-decl) 
+                                        (:state interrupt-decl) 
+                                        new-state))]
+          
+          (if (:ast body-state)
+            (assoc body-state :ast 
+                   (nodes/->FunctionDeclaration 
+                     return-type
+                     (:value name-token)
+                     params-list
+                     (:ast interrupt-decl)
+                     (:ast using-decl)
+                     (:ast body-state)))
+            (handle-error state 
+                        {:context "Failed to parse function body"
+                         :token (current-token body-state)})))
+        
+        (handle-error state 
+                    {:context "Invalid function declaration"
+                     :expected "return-type identifier ( params )"
+                     :found {:return-type return-type
+                            :name (when name-token 
+                                   {:type (:type name-token)
+                                    :value (:value name-token)})
+                            :params (when params-token 
+                                    {:type (:type params-token)
+                                     :value (:value params-token)})}})))))
 
 (defn parse-sfr-declaration
   "Заглушка для парсера SFR.
