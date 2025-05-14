@@ -211,7 +211,7 @@
     (if (and (< next-pos (count tokens))
              (not-empty tokens))
       (assoc state :position next-pos)
-      nil)))
+      nil)))  ;; Return nil to indicate we've reached the end
 
 ;; Ожидаемый токен с ожидаемым типом и значением
 (defn expect-token
@@ -1008,56 +1008,49 @@
                 :next    (when next-token {:type (:type next-token) :value (:value next-token)})})
     
     (if (nil? token)
-      nil  ;; Возвращаем nil если нет токена
-    (cond
-      ;; Unsigned int
-      (and (type-unsigned-keyword? token)
-           (type-int-keyword? next-token))
-      {:type :int 
-       :modifiers [:unsigned]
-       :state (-> state step-next step-next)}
-      
-      ;; Unsigned char
-      (and (type-unsigned-keyword? token)
-           (type-char-keyword? next-token))
-      {:type :char 
-       :modifiers [:unsigned]
-       :state (-> state step-next step-next)}
-      
-      ;; Signed int (явно указанный)
-      (and (type-signed-keyword? token)
-           (type-int-keyword? next-token))
-      {:type :int 
-       :modifiers [:signed]
-       :state (-> state step-next step-next)}
-      
-      ;; Signed char (явно указанный)
-      (and (type-signed-keyword? token)
-           (type-char-keyword? next-token))
-      {:type :char 
-       :modifiers [:signed]
-       :state (-> state step-next step-next)}
-      
-      ;; Неявный signed int
-      (type-int-keyword? token)
-      {:type :int 
-       :modifiers [:signed]
-       :state (step-next state)}
+      [state nil]  ;; Return vector format [state type-info]
+      (cond
+        ;; Unsigned int
+        (and (type-unsigned-keyword? token)
+             (type-int-keyword? next-token))
+        [(-> state step-next step-next)
+         {:type :int :modifiers [:unsigned]}]
+        
+        ;; Unsigned char
+        (and (type-unsigned-keyword? token)
+             (type-char-keyword? next-token))
+        [(-> state step-next step-next)
+         {:type :char :modifiers [:unsigned]}]
+        
+        ;; Signed int (явно указанный)
+        (and (type-signed-keyword? token)
+             (type-int-keyword? next-token))
+        [(-> state step-next step-next)
+         {:type :int :modifiers [:signed]}]
+        
+        ;; Signed char (явно указанный)
+        (and (type-signed-keyword? token)
+             (type-char-keyword? next-token))
+        [(-> state step-next step-next)
+         {:type :char :modifiers [:signed]}]
+        
+        ;; Неявный signed int
+        (type-int-keyword? token)
+        [(step-next state)
+         {:type :int :modifiers [:signed]}]
         
         ;; Неявный signed char
         (type-char-keyword? token)
-        {:type :char 
-         :modifiers [:signed]
-         :state (step-next state)}
+        [(step-next state)
+         {:type :char :modifiers [:signed]}]
         
         ;; Void
         (type-void-keyword? token)
-        {:type :void 
-         :modifiers []
-         :state (step-next state)}
+        [(step-next state)
+         {:type :void :modifiers []}]
         
         ;; Неизвестный тип
-        :else nil))))
+        :else [state nil]))))
 
 (defn parse-variable-declarations
   "Парсит список объявлений переменных через запятую.
@@ -1068,11 +1061,11 @@
               :current-token (when-let [t (current-token state)] 
                              {:type (:type t) :value (:value t)})})
   
-  (let [type-info (parse-type state)]
+  (let [[new-state type-info] (parse-type state)]  ;; Destructure as vector
     (if (nil? type-info)
       (handle-error state {:context "Неверный тип в объявлении переменной"})
-      (let [{:keys [type modifiers state]} type-info]
-        (loop [current-state state
+      (let [{:keys [type modifiers]} type-info]  ;; Get type info from the second element
+        (loop [current-state new-state  ;; Use the new state from parse-type
                declarations []]
           (let [name-token (current-token current-state)]
             (if (identifier? name-token)
@@ -1085,11 +1078,13 @@
                 (cond
                   ;; Точка с запятой - конец списка
                   (semicolon? separator-token)
-                  [(conj declarations var-decl) (step-next next-state)]
+                  {:state (step-next next-state)
+                   :ast (nodes/->Block (conj declarations var-decl))}
                   
                   ;; Запятая - продолжаем парсить
                   (comma? separator-token)
-                  (recur (step-next next-state) (conj declarations var-decl))
+                  (recur (step-next next-state) 
+                         (conj declarations var-decl))
                   
                   :else
                   (handle-error next-state 
@@ -1240,33 +1235,34 @@
                 (or-equal? op-token)
                 (xor-equal? op-token))
           (let [after-op (step-next after-left)
-                [after-right right-expr] (parse-expression after-op)]
-            (if right-expr
-              (let [semicolon-token (current-token after-right)
-                    ;; Определяем оператор для составного присваивания
-                    operator (case (:type op-token)
-                             :equal-assignment-operator     "="   ;; простое присваивание
-                             :and-equal-assignment-operator "&="  ;; &=
-                             :or-equal-assignment-operator  "|="  ;; |=
-                             :xor-equal-assignment-operator "^="  ;; ^=
-                             "=")]  ;; по умолчанию простое присваивание
+                [after-expr-state right-expr] (parse-expression after-op)]
+            (log/debug "Expression parsed:"
+                      "\n  State:" after-expr-state
+                      "\n  Expression:" right-expr)
+            (if (and after-expr-state right-expr)
+              (let [semicolon-token (current-token after-expr-state)]
                 (if (semicolon? semicolon-token)
-                  [(step-next after-right) 
-                   (nodes/->Assignment 
-                     left 
-                     right-expr 
-                     operator)]  ;; Добавляем оператор как третье поле
-                  (handle-error after-right
+                  {:state (step-next after-expr-state)  ;; Return map with :state and :ast
+                   :ast (nodes/->Assignment 
+                         left 
+                         right-expr 
+                         (case (:type op-token)
+                           :equal-assignment-operator     "="
+                           :and-equal-assignment-operator "&="
+                           :or-equal-assignment-operator  "|="
+                           :xor-equal-assignment-operator "^="
+                           "="))}
+                  (handle-error after-expr-state
                               {:context "Missing semicolon after assignment"
                                :found semicolon-token
                                :expected ";"})))
               (handle-error after-op
-                          {:context "Invalid expression in assignment"
+                          {:context "Failed to parse right-hand expression"
                            :found (current-token after-op)})))
           (handle-error after-left
                       {:context "Expected assignment operator"
                        :found op-token})))
-      [state nil]))) ;; Return nil instead of error for non-assignments
+      {:state state :ast nil})))  ;; Return consistent map format
 
 (defn parse-block
   "Парсит блок кода, заключенный в фигурные скобки"
@@ -1284,26 +1280,31 @@
           (cond
             ;; Закрывающая скобка - конец блока
             (close-curly-bracket? token)
-            [(step-next current-state) (nodes/->Block statements)]
+            {:state (step-next current-state) 
+             :ast (nodes/->Block statements)}
             
-            ;; Конец файла - ошибка
+            ;; Конец файла - возвращаем то, что успели собрать
             (nil? token)
-            (handle-error current-state {:context "Unexpected end of file in block"})
+            {:state current-state 
+             :ast (nodes/->Block statements)}
             
             ;; Парсим следующий оператор
             :else
-            (let [stmt-state (parse-statement current-state)]
-              (if-let [ast (:ast stmt-state)]
+            (let [stmt-result (parse-statement current-state)]
+              (if-let [ast (:ast stmt-result)]
                 ;; Если результат это блок, добавляем его содержимое
                 (if (instance? c51cc.ast.nodes.Block ast)
-                  (recur stmt-state (into statements (:statements ast)))
-                  (recur stmt-state (conj statements ast)))
+                  (recur (:state stmt-result) 
+                         (into statements (:statements ast)))
+                  (recur (:state stmt-result) 
+                         (conj statements ast)))
                 ;; Обработка ошибки
                 (if-let [recovered-state (handle-error current-state 
                                                      {:context "Failed to parse statement in block"
                                                       :token token})]
                   (recur recovered-state statements)
-                  [(step-next current-state) (nodes/->Block statements)]))))))
+                  {:state current-state 
+                   :ast (nodes/->Block statements)}))))))
       
       ;; Нет открывающей скобки
       (handle-error state 
