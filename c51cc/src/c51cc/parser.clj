@@ -69,6 +69,7 @@
           parse-main-declaration      ;;   Обрабатывает объявление функции main
 
           format-declaration-error    ;;	 Ошибка объявления переменной.
+          parse-return-statement      ;; 
 
           parse-array-access 	        ;;	 Обрабатывает доступ к элементам массивов, включая индексацию.
           parse-array-dimensions    	;;	 Обрабатывает размерности массивов, если они присутствуют в объявлении.
@@ -531,28 +532,67 @@
                   :value (:value next-next)}))
 
     (cond 
+      ;; Если текущий токен - открывающая скобка, делаем шаг вперед
+      (open-round-bracket? token)
+      (do 
+        (log/trace "parse-function-params: Skipping opening round bracket")
+        (let [new-state (step-next state)]
+          (parse-function-params new-state)))
+
       ;; Если void внутри скобок
       (type-void-keyword? token)
       (do 
         (log/trace "parse-function-params: No parameters (void)")
-        [(step-next state) []])
+        (let [next-state (step-next state)
+              close-token (current-token next-state)]
+          (if (close-round-bracket? close-token)
+            (let [final-state (step-next next-state)]
+              [final-state [{:type :void :name nil}]])
+            (handle-error next-state 
+                          {:context "Ожидается закрывающая скобка после void"
+                           :found {:type (:type close-token)
+                                   :value (:value close-token)}}))))
 
       ;; Если закрывающая скобка сразу - тоже пустые параметры
       (close-round-bracket? token)
       (do
         (log/trace "parse-function-params: Empty parameter list")
-        [state []])
+        (let [final-state (step-next state)]
+          [final-state []]))
 
       ;; Если токен не void и не закрывающая скобка
       :else
       (do 
-        (log/trace "parse-function-params: Unexpected token for parameter parsing"
-                   "\n  Token type:" (:type token)
-                   "\n  Token value:" (:value token))
-        (handle-error state 
-                      {:context "Неожиданный токен при парсинге параметров"
-                       :found {:type (:type token)
-                               :value (:value token)}})))))
+        (log/trace "parse-function-params: Parsing parameter")
+        (let [type-state (parse-type state)
+              type-ast (:type type-state)
+              name-token (current-token type-state)]
+          (if (identifier? name-token)
+            (let [param {:type type-ast :name (:value name-token)}
+                  next-state (step-next type-state)
+                  next-token (current-token next-state)]
+              (cond 
+                ;; Запятая - продолжаем парсить параметры
+                (comma? next-token)
+                (let [[final-state params] (parse-function-params (step-next next-state))]
+                  [final-state (cons param params)])
+                
+                ;; Закрывающая скобка - конец списка параметров
+                (close-round-bracket? next-token)
+                (let [final-state (step-next next-state)]
+                  [final-state [param]])
+                
+                :else
+                (handle-error next-state 
+                              {:context "Неожиданный токен при парсинге параметров"
+                               :found {:type (:type next-token)
+                                       :value (:value next-token)}})))
+            
+            ;; Если после типа нет идентификатора
+            (handle-error type-state 
+                          {:context "Ожидается имя параметра"
+                           :found {:type (:type name-token)
+                                   :value (:value name-token)}})))))))
 
 (defn parse-main-declaration
   "Специализированный парсер для функции `main` с улучшенной логикой.
@@ -607,52 +647,42 @@
       :else
       (let [param-start-state (if next-next-token
                                 (-> state 
-                                    (assoc :position (inc (:position state)))
+                                    (assoc :position (inc (inc (:position state))))
                                     (assoc :current-token next-next-token))
                                 (handle-error state 
                                               {:context "Отсутствует токен для парсинга параметров"}))
             [after-params-state params] (parse-function-params param-start-state)]
         (log/trace "После парсинга параметров:"
-                   "\n  Состояние:" after-params-state
+                   "\n  Состояние:" (current-token after-params-state)
                    "\n  Параметры:" params
                    "\n  Текущий токен:" (current-token after-params-state))
         
-        (cond 
-          ;; Проверка закрывающей скобки параметров
-          (not (close-round-bracket? (current-token after-params-state)))
-          (handle-error after-params-state 
-                        {:context "Ожидается закрывающая скобка параметров"
-                         :expected ")"
-                         :found (:value (current-token after-params-state))})
-          
-          ;; Переход к телу функции
-          :else
-          (let [body-state (step-next param-start-state)
-                body-token (current-token body-state)]
+        ;; Сразу переходим к проверке тела функции, так как parse-function-params 
+        ;; уже переместил нас на токен после закрывающей скобки
+        (let [body-token (current-token after-params-state)]
+          (cond
+            ;; Проверка открывающей фигурной скобки
+            (not (open-curly-bracket? body-token))
+            (handle-error after-params-state 
+                          {:context "Ожидается открывающая фигурная скобка тела функции"
+                           :expected "{"
+                           :found (:value body-token)})
 
-            (cond
-              ;; Проверка открывающей фигурной скобки
-              (not (open-curly-bracket? body-token))
-              (handle-error body-state 
-                            {:context "Ожидается открывающая фигурная скобка тела функции"
-                             :expected "{"
-                             :found (:value body-token)})
-
-              ;; Парсинг блока тела функции
-              :else
-              (let [[after-body-state body] (parse-block body-state)]
-                (if body
-                  (assoc after-body-state 
-                         :ast 
-                         (nodes/->FunctionDeclaration 
-                           :void
-                           "main"
-                           params
-                           nil    ;; interrupt
-                           nil    ;; using
-                           body))
-                  (handle-error body-state 
-                                {:context "Не удалось распарсить тело функции main"}))))))))))
+            ;; Парсинг блока тела функции
+            :else
+            (let [[after-body-state body] (parse-block after-params-state)]
+              (if body
+                (assoc after-body-state 
+                       :ast 
+                       (nodes/->FunctionDeclaration 
+                         :void
+                         "main"
+                         params
+                         nil    ;; interrupt
+                         nil    ;; using
+                         body))
+                (handle-error after-params-state 
+                              {:context "Не удалось распарсить тело функции main"})))))))))
 
 (defn parse-function-declaration
   "Расширенный парсер объявления функции с улучшенной обработкой ошибок.
@@ -963,11 +993,7 @@
                          (Integer/parseInt (:value bit-token)))))))))))) ;; bit
 
 (defn parse-type
-  "Обрабатывает различные типы данных, включая базовые типы и массивы.
-   Поддерживает signed и unsigned модификаторы.
-   
-   Возвращает map с типом и модификаторами:
-   {:type :int/:char/:void, :modifiers [:unsigned/:signed]}"
+  "Обрабатывает различные типы данных"
   [state]
   (log/trace "Entering parse-type with state:" 
              {:position (:position state)
@@ -975,14 +1001,14 @@
                              {:type (:type t) :value (:value t)})})
   
   (let [token (current-token state)
-        next-token (next-token state)
-        next-next-token (next-next-token state)]
+        next-token (next-token state)]
     
     (log/trace "Parsing type tokens:" 
                {:current (when token {:type (:type token) :value (:value token)})
-                :next    (when next-token {:type (:type next-token) :value (:value next-token)})
-                :next-next (when next-next-token {:type (:type next-next-token) :value (:value next-next-token)})})
+                :next    (when next-token {:type (:type next-token) :value (:value next-token)})})
     
+    (if (nil? token)
+      nil  ;; Возвращаем nil если нет токена
     (cond
       ;; Unsigned int
       (and (type-unsigned-keyword? token)
@@ -1017,88 +1043,61 @@
       {:type :int 
        :modifiers [:signed]
        :state (step-next state)}
-      
-      ;; Неявный signed char
-      (type-char-keyword? token)
-      {:type :char 
-       :modifiers [:signed]
-       :state (step-next state)}
-      
-      ;; Void
-      (type-void-keyword? token)
-      {:type :void 
-       :modifiers []
-       :state (step-next state)}
-      
-      ;; Неизвестный тип
-      :else 
-      (do 
-        (log/error "Неизвестный тип:" 
-          (when token {:type (:type token) :value (:value token)}))
-        {:type nil 
+        
+        ;; Неявный signed char
+        (type-char-keyword? token)
+        {:type :char 
+         :modifiers [:signed]
+         :state (step-next state)}
+        
+        ;; Void
+        (type-void-keyword? token)
+        {:type :void 
          :modifiers []
-         :state state}))))
+         :state (step-next state)}
+        
+        ;; Неизвестный тип
+        :else nil))))
 
 (defn parse-variable-declarations
   "Парсит список объявлений переменных через запятую.
    Возвращает вектор деклараций и новое состояние."
-  [type-state]
+  [state]
   (log/trace "Entering parse-variable-declarations with state:" 
-             {:position (:position type-state)
-              :current-token (when-let [t (current-token type-state)] 
-                             {:type (:type t) :value (:value t)})
-              :type-ast (:ast type-state)})
-  (let [type-ast (:ast type-state)]
-    (log/debug "parse-variable-declarations: Starting with type:" type-ast)
-    (loop [current-state type-state
-           declarations []]
-      (let [name-token (current-token current-state)
-            next-token (next-token current-state)]
-        (log/debug "parse-variable-declarations: Processing tokens:" 
-                  "\n  - Name token:" (when name-token {:type (:type name-token) :value (:value name-token)})
-                  "\n  - Next token:" (when next-token {:type (:type next-token) :value (:value next-token)}))
-        
-        (if (identifier? name-token)
-          (let [var-decl (nodes/->VariableDeclaration 
-                          (:type type-ast)
-                          (:value name-token))
-                next-state (step-next current-state)
-                separator-token (current-token next-state)]
-            
-            (log/debug "parse-variable-declarations: Created declaration:" var-decl)
-            (log/debug "parse-variable-declarations: Separator token:" 
-                      (when separator-token {:type (:type separator-token) :value (:value separator-token)}))
-            
-            (cond
-              ;; Точка с запятой - конец списка
-              (semicolon? separator-token)
-              (do
-                (log/debug "parse-variable-declarations: End of declarations (semicolon)")
-                [(conj declarations var-decl) (step-next next-state)])
+             {:position (:position state)
+              :current-token (when-let [t (current-token state)] 
+                             {:type (:type t) :value (:value t)})})
+  
+  (let [type-info (parse-type state)]
+    (if (nil? type-info)
+      (handle-error state {:context "Неверный тип в объявлении переменной"})
+      (let [{:keys [type modifiers state]} type-info]
+        (loop [current-state state
+               declarations []]
+          (let [name-token (current-token current-state)]
+            (if (identifier? name-token)
+              (let [var-decl (nodes/->VariableDeclaration 
+                              {:type type :modifiers modifiers}
+                              (:value name-token))
+                    next-state (step-next current-state)
+                    separator-token (current-token next-state)]
+                
+                (cond
+                  ;; Точка с запятой - конец списка
+                  (semicolon? separator-token)
+                  [(conj declarations var-decl) (step-next next-state)]
+                  
+                  ;; Запятая - продолжаем парсить
+                  (comma? separator-token)
+                  (recur (step-next next-state) (conj declarations var-decl))
+                  
+                  :else
+                  (handle-error next-state 
+                              {:context "Ожидается запятая или точка с запятой после объявления переменной"})))
               
-              ;; Запятая - продолжаем парсить
-              (comma? separator-token)
-              (do
-                (log/debug "parse-variable-declarations: More declarations (comma)")
-                (recur (step-next next-state) (conj declarations var-decl)))
-              
-              :else
-              (do
-                (log/error "parse-variable-declarations: Invalid separator after variable:" 
-                          (when separator-token {:type (:type separator-token) :value (:value separator-token)}))
-                (handle-error current-state 
-                            {:expected "Expected comma or semicolon after variable declaration"
-                             :found (when separator-token {:type  (:type separator-token)
-                                                           :value (:value separator-token)})}))))
-          
-          ;; Не идентификатор
-          (do
-            (log/error "parse-variable-declarations: Expected identifier, got:" 
-                      (when name-token {:type (:type name-token) :value (:value name-token)}))
-            (handle-error current-state 
-                        {:expected "Expected identifier for variable declaration"
-                         :found (when name-token {:type  (:type name-token)
-                                                  :value (:value name-token)})})))))))
+              ;; Не идентификатор
+              (handle-error current-state 
+                          {:context "Ожидается имя переменной"}))))))))
 
 (defn parse-statement
   "Универсальная функция для разбора различных операторов, 
@@ -1106,82 +1105,60 @@
    и специфичных для C51 конструкций."
   [state] 
   (log/trace "Entering parse-statement with state:" 
-             {:position (:position state)
-              :current-token (when-let [t (current-token state)] 
-                             {:type (:type t) :value (:value t)})})
+             "\nPosition:"        (:position state)
+             "\nCurrent token:"   (when-let [t (current-token state)]
+                                   {:type (:type t) :value (:value t)}))
+
   (let [token           (current-token   state)
         next-token      (next-token      state)
         next-next-token (next-next-token state)]
-    (log/trace  "\nPosition:"        (:position state)
-                "\nCurrent token:"   (when token           {:type (:type token)           :value (:value token)})
-                "\nNext token:"      (when next-token      {:type (:type next-token)      :value (:value next-token)})
-                "\nNext-next token:" (when next-next-token {:type (:type next-next-token) :value (:value next-next-token)}))
+    (log/trace "Entering parse-statement with state:" 
+               "\nPosition:"        (:position state)
+               "\nCurrent token:"   (when token           {:type (:type token)           :value (:value token)})
+               "\nNext token:"      (when next-token      {:type (:type next-token)      :value (:value next-token)})
+               "\nNext-next token:" (when next-next-token {:type (:type next-next-token) :value (:value next-next-token)}))
       
-      (cond
-        ;; Если void и main -- это функция main
-        (and  (type-void-keyword? token)
-              (type-main-keyword? next-token))
-              
-              (parse-main-declaration state)
+    (cond
+      ;; Если void и main -- это функция main
+      (and (type-void-keyword? token)
+           (type-main-keyword? next-token))
+      (parse-main-declaration state)
 
-        (or (type-signed-keyword?   token)
-            (type-unsigned-keyword? token)
-            (type-int-keyword?      token)
-            (type-char-keyword?     token))
-            
-            (let [type-state (parse-type state)
-                  name-token (current-token type-state)]
-              (log/debug "parse-statement: After type parsing. Name token:" 
-                        (when name-token {:type (:type name-token) :value (:value name-token)})
-                        "Type AST:" (:ast type-state))
-            (cond
-              ;; Объявление функции
-              (open-round-bracket? (next-token type-state))
-              (parse-function-declaration type-state)
-
-              ;; Объявление переменной (включая список через запятую)
-              (identifier? name-token)
-              (let [[declarations final-state] (parse-variable-declarations type-state)]
-                (if (seq declarations)
-                  (assoc final-state :ast (first declarations))
-                  (handle-error type-state)))
+      ;; Если это объявление типа
+      (or (type-signed-keyword?   token)
+          (type-unsigned-keyword? token)
+          (type-int-keyword?      token)
+          (type-char-keyword?     token)
+          (type-void-keyword?     token))
+      (let [[declarations final-state] (parse-variable-declarations state)]
+        (if (seq declarations)
+          ;; Возвращаем все декларации как блок
+          (assoc final-state :ast (nodes/->Block declarations))
+          (handle-error state {:context "Ошибка в объявлении переменной"})))
               
-              
-              :else 
-              (do 
-                (log/error "Ошибка в объявлении переменной или функции:" 
-                          "\n  - Имя:" (when name-token (:value name-token))
-                          "\n  - Тип токена:" (when name-token (:type name-token))
-                          "\n  - Следующий токен:" (when-let [nt (next-token type-state)] 
-                                                   {:type (:type nt) :value (:value nt)}))
-                (handle-error type-state)))))
-  
-        ;; Добавить здесь обработку for цикла
-        (type-for-keyword? token)
-        (let [[new-state ast] (parse-for-loop state)]
-          (if ast
-            (assoc new-state :ast ast)
-            (handle-error state 
-                        {:context "Failed to parse for loop"})))
+      ;; Оператор присваивания (идентификатор = выражение;)
+      ;; (and (identifier? token)
+      ;;      (equal? next-token))
+      (identifier? token)
+      (parse-assignment state)
 
-        ;; Добавить здесь обработку while цикла
-        (type-while-keyword? token)
-        (let [[new-state ast] (parse-while-loop state)]
-          (if ast
-            (assoc new-state :ast ast)
-            (handle-error state 
-                        {:context "Failed to parse while loop"})))
-        
-        ;; Оператор присваивания (идентификатор = выражение;)
-        (and (identifier? token)
-             (equal? next-token))
-        (let [[new-state ast] (parse-assignment state)]
-          (if ast
-            (assoc new-state :ast ast)
-            (handle-error state)))
-        
-        ;; Другие операторы (return, if, etc.) остаются без изменений
-        :else state))
+      ;; Цикл for
+      (type-for-keyword? token)
+      (parse-for-loop state)
+
+      ;; Цикл while
+      (type-while-keyword? token)
+      (parse-while-loop state)
+
+      ;; Оператор return
+      (type-return-keyword? token)
+      (parse-return-statement state)
+              
+      ;; Если ничего не подошло
+      :else 
+      (handle-error state 
+                    {:context "Неизвестный оператор"
+                     :token token}))))
 
 (defn parse-binary-expression
   "Парсит бинарное выражение с учетом приоритета операторов"
@@ -1265,21 +1242,20 @@
           (let [after-op (step-next after-left)
                 [after-right right-expr] (parse-expression after-op)]
             (if right-expr
-              (let [semicolon-token (current-token after-right)]
+              (let [semicolon-token (current-token after-right)
+                    ;; Определяем оператор для составного присваивания
+                    operator (case (:type op-token)
+                             :equal-assignment-operator     "="   ;; простое присваивание
+                             :and-equal-assignment-operator "&="  ;; &=
+                             :or-equal-assignment-operator  "|="  ;; |=
+                             :xor-equal-assignment-operator "^="  ;; ^=
+                             "=")]  ;; по умолчанию простое присваивание
                 (if (semicolon? semicolon-token)
-                  (let [operator (case (:type op-token)
-                                 :equal-assignment-operator nil
-                                 :and-equal-assignment-operator "&"
-                                 :or-equal-assignment-operator "|"
-                                 :xor-equal-assignment-operator "^")]
-                    [(step-next after-right) 
-                     (if operator
-                       ;; Для составных операторов создаем BinaryExpression
-                       (nodes/->Assignment 
-                         left 
-                         (nodes/->BinaryExpression operator left right-expr))
-                       ;; Для обычного присваивания просто Assignment
-                       (nodes/->Assignment left right-expr))])
+                  [(step-next after-right) 
+                   (nodes/->Assignment 
+                     left 
+                     right-expr 
+                     operator)]  ;; Добавляем оператор как третье поле
                   (handle-error after-right
                               {:context "Missing semicolon after assignment"
                                :found semicolon-token
@@ -1290,18 +1266,16 @@
           (handle-error after-left
                       {:context "Expected assignment operator"
                        :found op-token})))
-      (handle-error state
-                  {:context "Expected identifier in assignment"
-                   :found left-token}))))
+      [state nil]))) ;; Return nil instead of error for non-assignments
 
 (defn parse-block
-  "Парсит блок кода, заключенный в фигурные скобки.
-   Возвращает [new-state statements]"
+  "Парсит блок кода, заключенный в фигурные скобки"
   [state]
   (log/trace "Entering parse-block with state:" 
              {:position (:position state)
               :current-token (when-let [t (current-token state)] 
                              {:type (:type t) :value (:value t)})})
+  
   (let [open-token (current-token state)]
     (if (open-curly-bracket? open-token)
       (loop [current-state (step-next state)
@@ -1314,16 +1288,27 @@
             
             ;; Конец файла - ошибка
             (nil? token)
-            (handle-error state {:context "Unexpected end of file in block"})
+            (handle-error current-state {:context "Unexpected end of file in block"})
             
             ;; Парсим следующий оператор
             :else
             (let [stmt-state (parse-statement current-state)]
-              (if (:ast stmt-state)
-                (recur stmt-state (conj statements (:ast stmt-state)))
-                (handle-error current-state 
-                            {:context "Failed to parse statement in block"}))))))
-      (handle-error state {:context "Expected '{' at start of block"}))))
+              (if-let [ast (:ast stmt-state)]
+                ;; Если результат это блок, добавляем его содержимое
+                (if (instance? c51cc.ast.nodes.Block ast)
+                  (recur stmt-state (into statements (:statements ast)))
+                  (recur stmt-state (conj statements ast)))
+                ;; Обработка ошибки
+                (if-let [recovered-state (handle-error current-state 
+                                                     {:context "Failed to parse statement in block"
+                                                      :token token})]
+                  (recur recovered-state statements)
+                  [(step-next current-state) (nodes/->Block statements)]))))))
+      
+      ;; Нет открывающей скобки
+      (handle-error state 
+                    {:context "Expected '{' at start of block"
+                     :token open-token}))))
 
 (defn parse-return-statement
   "Парсит оператор return.

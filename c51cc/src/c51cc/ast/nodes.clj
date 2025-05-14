@@ -13,7 +13,7 @@
 (defrecord VariableDeclaration [type name])
 
 ;; Оператор присваивания содержит левую и правую часть
-(defrecord Assignment [left right])
+(defrecord Assignment [left right operator])
 
 ;; Блок содержит список операторов
 (defrecord Block [statements])
