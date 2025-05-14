@@ -1,8 +1,5 @@
 (ns c51cc.preprocessor
-  (:require [clojure.string :as str]
-            [c51cc.logger :as log]
-            [c51cc.parser :as parser]
-            [c51cc.lexer :as lexer]))
+  (:require [clojure.string :as str]))
 
 (def preprocessor-rules {
     :include "#include"

@@ -7,6 +7,7 @@
          log-info 
          log-debug 
          log-trace
+         log-paranoic
          set-log-level
          can-log
          debug
@@ -26,13 +27,14 @@
     :warning 2,
     :info 3,
     :debug 4,
-    :trace 5
+    :trace 5,
+    :paranoic 6
 })
 
 (defn print-current-log-level []
   (println (str "Current log level: " @current-log-level)))
 
-(def log-level-names [:silent :error :warning :info :debug :trace])
+(def log-level-names [:silent :error :warning :info :debug :trace :paranoic])
 
 (defn can-log [level]
   (let [current-level-value (get log-levels @current-log-level 0)
@@ -70,3 +72,6 @@
   (when (can-log :trace)
     (@logger :trace (str/join " " (map str msgs)))))
 
+(defn paranoic [& msgs]
+  (when (can-log :paranoic)
+    (@logger :paranoic (str/join " " (map str msgs)))))
