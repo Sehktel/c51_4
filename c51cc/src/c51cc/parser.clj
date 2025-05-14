@@ -516,20 +516,43 @@
    Возвращает вектор параметров и новое состояние"
   [state]
   (let [token (current-token state)]
-    (log/trace "Entering parse-function-params. Current token:" 
-               (when token {:type (:type token) :value (:value token)})
-               "Position:" (:position state))
+    (log/trace "Entering parse-function-params. Detailed token info:" 
+               "\n  Current Token:" 
+               {:type (:type token) 
+                :value (:value token)
+                :position (:position state)}
+               "\n  Next Token:" 
+               (when-let [next (next-token state)]
+                 {:type (:type next) 
+                  :value (:value next)})
+               "\n  Next-Next Token:" 
+               (when-let [next-next (next-next-token state)]
+                 {:type (:type next-next) 
+                  :value (:value next-next)}))
 
-    (let [param-type-token (current-token state)]
-      (if (type-void-keyword? param-type-token)
-        ;; Если void - параметров нет
-        (do 
-          (log/trace "parse-function-params: No parameters (void)")
-          [(step-next state) []])
-        ;; TODO: Здесь будет обработка других параметров
-        (do 
-          (log/trace "parse-function-params: Placeholder for parameter parsing")
-          [(step-next state) []])))))
+    (cond 
+      ;; Если void внутри скобок
+      (type-void-keyword? token)
+      (do 
+        (log/trace "parse-function-params: No parameters (void)")
+        [(step-next state) []])
+
+      ;; Если закрывающая скобка сразу - тоже пустые параметры
+      (close-round-bracket? token)
+      (do
+        (log/trace "parse-function-params: Empty parameter list")
+        [state []])
+
+      ;; Если токен не void и не закрывающая скобка
+      :else
+      (do 
+        (log/trace "parse-function-params: Unexpected token for parameter parsing"
+                   "\n  Token type:" (:type token)
+                   "\n  Token value:" (:value token))
+        (handle-error state 
+                      {:context "Неожиданный токен при парсинге параметров"
+                       :found {:type (:type token)
+                               :value (:value token)}})))))
 
 (defn parse-main-declaration
   "Специализированный парсер для функции `main` с улучшенной логикой.
@@ -589,14 +612,19 @@
                                 (handle-error state 
                                               {:context "Отсутствует токен для парсинга параметров"}))
             [after-params-state params] (parse-function-params param-start-state)]
+        (log/trace "После парсинга параметров:"
+                   "\n  Состояние:" after-params-state
+                   "\n  Параметры:" params
+                   "\n  Текущий токен:" (current-token after-params-state))
+        
         (cond 
           ;; Проверка закрывающей скобки параметров
-          (not (close-round-bracket? (current-token param-start-state)))
-          (handle-error param-start-state 
+          (not (close-round-bracket? (current-token after-params-state)))
+          (handle-error after-params-state 
                         {:context "Ожидается закрывающая скобка параметров"
                          :expected ")"
-                         :found (:value (current-token param-start-state))})
-
+                         :found (:value (current-token after-params-state))})
+          
           ;; Переход к телу функции
           :else
           (let [body-state (step-next param-start-state)
