@@ -1313,17 +1313,17 @@
 
 (defn parse-return-statement
   "Парсит оператор return.
-   Возвращает [new-state ast]"
+   Возвращает {:state :ast}"
   [state]
   (let [return-token (current-token state)]
     (if (type-return-keyword? return-token)
       (let [expr-state (step-next state)
-            [after-expr-state expr] (parse-expression expr-state)
-            semicolon-token (current-token after-expr-state)]
+            expr-result (parse-expression expr-state)  ;; Ожидаем {:state :ast}
+            semicolon-token (current-token (:state expr-result))]
         (if (semicolon? semicolon-token)
-          [(step-next after-expr-state) 
-           (nodes/->ReturnStatement expr)]
-          (handle-error after-expr-state
+          {:state (step-next (:state expr-result))
+           :ast (nodes/->ReturnStatement (:ast expr-result))}
+          (handle-error (:state expr-result)
                       {:context "Missing semicolon after return statement"})))
       (handle-error state
                    {:context "Expected 'return' keyword"}))))
