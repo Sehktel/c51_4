@@ -70,7 +70,9 @@
 
           format-declaration-error    ;;	 Ошибка объявления переменной.
           parse-return-statement      ;; 
-
+          parse-variable-declarations
+          
+          
           parse-array-access 	        ;;	 Обрабатывает доступ к элементам массивов, включая индексацию.
           parse-array-dimensions    	;;	 Обрабатывает размерности массивов, если они присутствуют в объявлении.
           parse-array-type           	;;	 Обрабатывает объявления массивов, включая их размерности.
@@ -410,7 +412,7 @@
           :done 
           (do
             (log/debug "Восстановление завершено")
-            (step-next current-state))))));;)
+            (step-next current-state))))))
 
 (defn parser 
   "Алиас к parse-program.
@@ -453,17 +455,11 @@
               (type-char-keyword? token)
               (type-unsigned-keyword? token)
               (type-signed-keyword? token))
-          (let [decl-state (parse-statement current-state)]
-            (if (:ast decl-state)
+          (let [result (parse-variable-declarations current-state)]
+            (if (seq (:ast result))
               (do 
-                (swap! fsm-state update :declarations conj (:ast decl-state))
-              ;; swap! - атомарное изменение состояния
-              ;; fsm-state - атом (изменяемая ссылка)
-              ;; update - функция обновления структуры
-              ;; :declarations - ключ в структуре состояния
-              ;; conj - функция добавления элемента в коллекцию
-              ;; (:ast decl-state) - новый элемент для добавления
-                (recur decl-state))
+                (swap! fsm-state update :declarations conj (:ast result))
+                (recur (:state result)))
               (handle-error current-state 
                           {:context "Failed to parse declaration"
                            :token token})))
@@ -508,335 +504,114 @@
           (recur (step-next current-state)))))))
 
 (defn parse-function-params
-  "Парсер параметров функции.
-   Обрабатывает:
-   - Тип параметра (void/int/char)
-   - Имя параметра (если есть)
-   - Закрывающую скобку
-   
-   Возвращает вектор параметров и новое состояние"
+  "Парсит параметры функции"
   [state]
   (let [token (current-token state)]
-    (log/trace "Entering parse-function-params. Detailed token info:" 
-               "\n  Current Token:" 
-               {:type (:type token) 
-                :value (:value token)
-                :position (:position state)}
-               "\n  Next Token:" 
-               (when-let [next (next-token state)]
-                 {:type (:type next) 
-                  :value (:value next)})
-               "\n  Next-Next Token:" 
-               (when-let [next-next (next-next-token state)]
-                 {:type (:type next-next) 
-                  :value (:value next-next)}))
-
     (cond 
       ;; Если текущий токен - открывающая скобка, делаем шаг вперед
       (open-round-bracket? token)
-      (do 
-        (log/trace "parse-function-params: Skipping opening round bracket")
-        (let [new-state (step-next state)]
-          (parse-function-params new-state)))
+      (let [new-state (step-next state)]
+        (parse-function-params new-state))
 
       ;; Если void внутри скобок
       (type-void-keyword? token)
-      (do 
-        (log/trace "parse-function-params: No parameters (void)")
-        (let [next-state (step-next state)
-              close-token (current-token next-state)]
-          (if (close-round-bracket? close-token)
-            (let [final-state (step-next next-state)]
-              [final-state [{:type :void :name nil}]])
-            (handle-error next-state 
-                          {:context "Ожидается закрывающая скобка после void"
-                           :found {:type (:type close-token)
-                                   :value (:value close-token)}}))))
+      (let [next-state (step-next state)
+            close-token (current-token next-state)]
+        (if (close-round-bracket? close-token)
+          {:state (step-next next-state)
+           :ast [{:type :void :name nil}]}
+          (handle-error next-state 
+                        {:context "Ожидается закрывающая скобка после void"})))
 
       ;; Если закрывающая скобка сразу - тоже пустые параметры
       (close-round-bracket? token)
-      (do
-        (log/trace "parse-function-params: Empty parameter list")
-        (let [final-state (step-next state)]
-          [final-state []]))
+      {:state (step-next state)
+       :ast []}
 
       ;; Если токен не void и не закрывающая скобка
       :else
-      (do 
-        (log/trace "parse-function-params: Parsing parameter")
-        (let [type-state (parse-type state)
-              type-ast (:type type-state)
-              name-token (current-token type-state)]
-          (if (identifier? name-token)
-            (let [param {:type type-ast :name (:value name-token)}
-                  next-state (step-next type-state)
-                  next-token (current-token next-state)]
-              (cond 
-                ;; Запятая - продолжаем парсить параметры
-                (comma? next-token)
-                (let [[final-state params] (parse-function-params (step-next next-state))]
-                  [final-state (cons param params)])
-                
-                ;; Закрывающая скобка - конец списка параметров
-                (close-round-bracket? next-token)
-                (let [final-state (step-next next-state)]
-                  [final-state [param]])
-                
-                :else
-                (handle-error next-state 
-                              {:context "Неожиданный токен при парсинге параметров"
-                               :found {:type (:type next-token)
-                                       :value (:value next-token)}})))
-            
-            ;; Если после типа нет идентификатора
-            (handle-error type-state 
-                          {:context "Ожидается имя параметра"
-                           :found {:type (:type name-token)
-                                   :value (:value name-token)}})))))))
+      (let [type-result (parse-type state)]
+        (if (:ast type-result)
+          (let [name-token (current-token (:state type-result))]
+            (if (identifier? name-token)
+              (let [param {:type (:ast type-result) :name (:value name-token)}
+                    next-state (step-next (:state type-result))
+                    next-token (current-token next-state)]
+                (cond 
+                  ;; Запятая - продолжаем парсить параметры
+                  (comma? next-token)
+                  (let [next-params (parse-function-params (step-next next-state))]
+                    {:state (:state next-params)
+                     :ast (cons param (:ast next-params))})
+                  
+                  ;; Закрывающая скобка - конец списка параметров
+                  (close-round-bracket? next-token)
+                  {:state (step-next next-state)
+                   :ast [param]}
+                  
+                  :else
+                  (handle-error next-state 
+                              {:context "Неожиданный токен при парсинге параметров"})))
+              (handle-error (:state type-result)
+                          {:context "Ожидается имя параметра"})))
+          (handle-error state
+                      {:context "Ожидается тип параметра"}))))))
 
 (defn parse-main-declaration
-  "Специализированный парсер для функции `main` с улучшенной логикой.
-  Эта функция отвечает за синтаксический анализ объявления функции `main`,
-  которая служит точкой входа для программ, предназначенных для архитектуры C51.
-  'Улучшенная логика' в данном контексте подразумевает выполнение следующих строгих проверок,
-  специфичных для канонического объявления `void main(void)`:
-  1. Корректность возвращаемого типа: функция должна быть объявлена с типом `void`.
-  2. Идентичность имени функции: имя функции должно быть `main`.
-  3. Наличие и правильное использование круглых скобок `()` для списка параметров.
-  4. Обработка списка параметров: для `main` в C51 обычно ожидается `void` внутри скобок,
-     что означает отсутствие формальных параметров. Функция `parse-function-params`
-     будет вызвана для обработки этого.
-  5. Последующий разбор тела функции, которое должно быть заключено в фигурные скобки `{}`.
-  Такой детализированный подход к разбору `main` обеспечивает более точную диагностику
-  синтаксических ошибок на ранних этапах компиляции и гарантирует, что объявление
-  главной функции программы соответствует общепринятым конвенциям для C51."
   [state]
-  (let [token           (current-token   state)
-        next-token      (next-token      state)
-        next-next-token (next-next-token state)]
-
-    (log/trace "Проверка последовательности токенов main функции"
-               "\n Position  :" (:position state)
-               "\n Token     :" (when token {:type (:type token) :value (:value token)})
-               "\n Next      :" (when next-token {:type (:type next-token) :value (:value next-token)})
-               "\n Next-Next :" (when next-next-token {:type (:type next-next-token) :value (:value next-next-token)}))
-
-    ;; Строгая последовательность проверки
-    (cond 
-      ;; Проверка возвращаемого типа
-      (not (type-void-keyword? token))
-      (handle-error state 
-                    {:context "Некорректный возвращаемый тип main функции"
-                     :expected "void"
-                     :found (:value token)})
-
-      ;; Проверка имени функции
-      (not (type-main-keyword? next-token))
-      (handle-error state 
-                    {:context "Отсутствует ключевое слово main"
-                     :expected "main"
-                     :found (:value next-token)})
-
-      ;; Проверка открывающей скобки параметров
-      (not (open-round-bracket? next-next-token))
-      (handle-error state 
-                    {:context "Отсутствует открывающая скобка параметров"
-                     :expected "("
-                     :found (:value next-next-token)})
-
-      :else
-      (let [param-start-state (if next-next-token
-                                (-> state 
-                                    (assoc :position (inc (inc (:position state))))
-                                    (assoc :current-token next-next-token))
-                                (handle-error state 
-                                              {:context "Отсутствует токен для парсинга параметров"}))
-            [after-params-state params] (parse-function-params param-start-state)]
-        (log/trace "После парсинга параметров:"
-                   "\n  Состояние:" (current-token after-params-state)
-                   "\n  Параметры:" params
-                   "\n  Текущий токен:" (current-token after-params-state))
-        
-        ;; Сразу переходим к проверке тела функции, так как parse-function-params 
-        ;; уже переместил нас на токен после закрывающей скобки
-        (let [body-token (current-token after-params-state)]
-          (cond
-            ;; Проверка открывающей фигурной скобки
-            (not (open-curly-bracket? body-token))
-            (handle-error after-params-state 
-                          {:context "Ожидается открывающая фигурная скобка тела функции"
-                           :expected "{"
-                           :found (:value body-token)})
-
-            ;; Парсинг блока тела функции
-            :else
-            (let [[after-body-state body] (parse-block after-params-state)]
-              (if body
-                (assoc after-body-state 
-                       :ast 
-                       (nodes/->FunctionDeclaration 
+  (let [type-result (parse-type state)]
+    (if (and (:ast type-result) 
+             (= (:type (:ast type-result)) :void))
+      (let [main-token (current-token (:state type-result))]
+        (if (type-main-keyword? main-token)
+          (let [params-result (parse-function-params (step-next (:state type-result)))]
+            (if (:ast params-result)
+              (let [body-result (parse-block (:state params-result))]
+                (if (:ast body-result)
+                  {:state (:state body-result)
+                   :ast (nodes/->FunctionDeclaration 
                          :void
                          "main"
-                         params
-                         nil    ;; interrupt
-                         nil    ;; using
-                         body))
-                (handle-error after-params-state 
-                              {:context "Не удалось распарсить тело функции main"})))))))))
+                         (:ast params-result)
+                         nil  ;; interrupt
+                         nil  ;; using
+                         (:ast body-result))}
+                  (handle-error (:state params-result)
+                            {:context "Failed to parse main function body"})))
+              (handle-error (:state type-result)
+                        {:context "Failed to parse main function parameters"})))
+          (handle-error (:state type-result)
+                    {:context "Expected 'main' keyword"})))
+      (handle-error state
+                  {:context "Main function must return void"}))))
 
 (defn parse-function-declaration
-  "Расширенный парсер объявления функции с улучшенной обработкой ошибок.
-   Поддерживает различные типы возвращаемых значений и параметров.
-   
-   Ключевые особенности:
-   1. Строгая проверка последовательности токенов
-   2. Детальная диагностика синтаксических ошибок
-   3. Функциональный подход к парсингу
-   4. Строго соблюдает последовательность: 
-      [type][identifier][(][params][)][interrupt?][using?][{][body][}]"
   [state]
-  (let [token           (current-token   state)
-        next-token      (next-token      state)
-        next-next-token (next-next-token state)]
+  (let [type-result (parse-type state)]
+    (if (nil? (:ast type-result))
+      (handle-error state {:context "Invalid return type"})
+      (let [name-token (current-token (:state type-result))]
+        (if (identifier? name-token)
+          (let [params-state (step-next (:state type-result))
+                params-result (parse-function-params params-state)]
+            (if (:ast params-result)
+              (let [body-result (parse-block (:state params-result))]
+                (if (:ast body-result)
+                  {:state (:state body-result)
+                   :ast (nodes/->FunctionDeclaration 
+                         (:ast type-result)
+                         (:value name-token)
+                         (:ast params-result)
+                         nil  ;; interrupt
+                         nil  ;; using
+                         (:ast body-result))}
+                  (handle-error (:state params-result)
+                            {:context "Failed to parse function body"})))
+              (handle-error params-state
+                          {:context "Failed to parse function parameters"})))
+          (handle-error (:state type-result)
+                      {:context "Expected function name"}))))))
 
-    (log/trace "Проверка последовательности токенов функции"
-               "\n Position       :" (:position state)
-               "\n Токены         :" 
-               {:token     (when token {:type (:type token) :value (:value token)})
-                :next      (when next-token {:type (:type next-token) :value (:value next-token)})
-                :next-next (when next-next-token {:type (:type next-next-token) :value (:value next-next-token)})})
-
-    ;; Определение типа возврата с расширенной проверкой
-    ;; Определение структуры типа возврата функции.
-    ;; 'unsigned' и 'signed' теперь рассматриваются как модификаторы для 'int' и 'char',
-    ;; а не как самостоятельные типы. 'return-type' будет картой вида {:type T :modifiers M}.
-    (let [return-type (parse-type token)]
-            ;; (cond
-            ;;             ;; Тип void: void foo();
-            ;;             (type-void-keyword? token)
-            ;;             {:type :void, :modifiers []}
-
-            ;;             ;; Тип unsigned int: unsigned int foo();
-            ;;             (and (type-unsigned-keyword? token) (type-int-keyword? next-token))
-            ;;             {:type :int, :modifiers [:unsigned]}
-
-            ;;             ;; Тип unsigned char: unsigned char foo();
-            ;;             (and (type-unsigned-keyword? token) (type-char-keyword? next-token))
-            ;;             {:type :char, :modifiers [:unsigned]}
-
-            ;;             ;; Тип signed int: signed int foo();
-            ;;             (and (type-signed-keyword? token) (type-int-keyword? next-token))
-            ;;             {:type :int, :modifiers [:signed]}
-
-            ;;             ;; Тип signed char: signed char foo();
-            ;;             (and (type-signed-keyword? token) (type-char-keyword? next-token))
-            ;;             {:type :char, :modifiers [:signed]}
-
-            ;;             ;; Тип int (по умолчанию знаковый, если не указано иное): int foo();
-            ;;             ;; Эта проверка должна идти после проверок "unsigned int" и "signed int".
-            ;;             (type-int-keyword? token)
-            ;;             {:type :int, :modifiers [:signed]}
-
-            ;;             ;; Тип char (по умолчанию знаковый, если не указано иное): char foo();
-            ;;             ;; Эта проверка должна идти после проверок "unsigned char" и "signed char".
-            ;;             (type-char-keyword? token)
-            ;;             {:type :char, :modifiers [:signed]}
-
-            ;;             ;; Если ни одно из предыдущих условий не выполнено,
-            ;;             ;; последовательность токенов не образует известный тип возврата.
-            ;;             :else nil)]
-      
-      ;; Строгая последовательность проверки
-      (cond 
-        ;; Проверка корректности возвращаемого типа
-        (nil? return-type)
-        (handle-error state 
-                      {:context "Некорректный тип возврата функции"
-                       :expected "void, [unsigned | signed] int, [unsigned | signed] char"
-                       :found (:value token)})
-
-        ;; Проверка имени функции
-        (not (identifier? next-token))
-        (handle-error state 
-                      {:context "Отсутствует имя функции"
-                       :expected "Идентификатор"
-                       :found (:value next-token)})
-
-        ;; Проверка открывающей скобки параметров
-        (not (open-round-bracket? next-next-token))
-        (handle-error state 
-                      {:context "Отсутствует открывающая скобка параметров"
-                       :expected "("
-                       :found (:value next-next-token)})
-
-        :else
-        (let [name-token     next-token
-              param-start-state (if next-next-token
-                                  (-> state 
-                                      (assoc :position (inc (:position state)))
-                                      (assoc :current-token next-next-token))
-                                  (handle-error state 
-                                                {:context "Отсутствует токен для парсинга параметров"}))
-              [after-params-state params] (parse-function-params param-start-state)
-              
-              ;; Проверка закрывающей скобки параметров
-              close-param-token (current-token after-params-state)
-              _ (log/trace "Токен закрытия параметров:" 
-                           (when close-param-token 
-                             {:type (:type close-param-token) 
-                              :value (:value close-param-token)}))]
-
-          (cond 
-            ;; Проверка закрывающей скобки параметров
-            (not (close-round-bracket? close-param-token))
-            (handle-error after-params-state 
-                          {:context "Ожидается закрывающая скобка параметров"
-                           :expected ")"
-                           :found (:value close-param-token)})
-
-            :else
-            (let [;; Проверка необязательных interrupt и using после параметров
-                  after-close-paren-state (step-next after-params-state)
-                  interrupt-decl (when (interrupt-keyword? (current-token after-close-paren-state))
-                                   (parse-interrupt-declaration after-close-paren-state))
-                  
-                  ;; Состояние после interrupt или после параметров
-                  state-after-interrupt (or (:state interrupt-decl) 
-                                            after-close-paren-state)
-                  
-                  using-decl (when (using-keyword? (current-token state-after-interrupt))
-                               (parse-using-declaration state-after-interrupt))
-                  
-                  ;; Состояние после using или после interrupt
-                  state-after-using (or (:state using-decl) 
-                                        state-after-interrupt)
-                  
-                  ;; Проверка открывающей фигурной скобки тела функции
-                  body-token (current-token state-after-using)]
-
-              (cond
-                ;; Проверка открывающей фигурной скобки
-                (not (open-curly-bracket? body-token))
-                (handle-error state-after-using 
-                              {:context "Ожидается открывающая фигурная скобка тела функции"
-                               :expected "{"
-                               :found (:value body-token)})
-
-                ;; Парсинг блока тела функции
-                :else
-                (let [[after-body-state body] (parse-block state-after-using)]
-                  (if body
-                    (assoc after-body-state 
-                           :ast 
-                           (nodes/->FunctionDeclaration 
-                             return-type
-                             (:value name-token)
-                             params
-                             (:ast interrupt-decl)
-                             (:ast using-decl)
-                             body))
-                    (handle-error state-after-using 
-                                  {:context "Не удалось распарсить тело функции"})))))))))))
 
 (defn parse-sfr-declaration
   "Парсер объявления SFR (Special Function Register) с расширенной логикой проверки.
@@ -1008,64 +783,63 @@
                 :next    (when next-token {:type (:type next-token) :value (:value next-token)})})
     
     (if (nil? token)
-      [state nil]  ;; Return vector format [state type-info]
+      {:state state :ast nil}
       (cond
         ;; Unsigned int
         (and (type-unsigned-keyword? token)
              (type-int-keyword? next-token))
-        [(-> state step-next step-next)
-         {:type :int :modifiers [:unsigned]}]
+        {:state (-> state step-next step-next)
+         :ast {:type :int :modifiers [:unsigned]}}
         
         ;; Unsigned char
         (and (type-unsigned-keyword? token)
              (type-char-keyword? next-token))
-        [(-> state step-next step-next)
-         {:type :char :modifiers [:unsigned]}]
+        {:state (-> state step-next step-next)
+         :ast {:type :char :modifiers [:unsigned]}}
         
         ;; Signed int (явно указанный)
         (and (type-signed-keyword? token)
              (type-int-keyword? next-token))
-        [(-> state step-next step-next)
-         {:type :int :modifiers [:signed]}]
+        {:state (-> state step-next step-next)
+         :ast {:type :int :modifiers [:signed]}}
         
         ;; Signed char (явно указанный)
         (and (type-signed-keyword? token)
              (type-char-keyword? next-token))
-        [(-> state step-next step-next)
-         {:type :char :modifiers [:signed]}]
+        {:state (-> state step-next step-next)
+         :ast {:type :char :modifiers [:signed]}}
         
         ;; Неявный signed int
         (type-int-keyword? token)
-        [(step-next state)
-         {:type :int :modifiers [:signed]}]
+        {:state (step-next state)
+         :ast {:type :int :modifiers [:signed]}}
         
         ;; Неявный signed char
         (type-char-keyword? token)
-        [(step-next state)
-         {:type :char :modifiers [:signed]}]
+        {:state (step-next state)
+         :ast {:type :char :modifiers [:signed]}}
         
         ;; Void
         (type-void-keyword? token)
-        [(step-next state)
-         {:type :void :modifiers []}]
+        {:state (step-next state)
+         :ast {:type :void :modifiers []}}
         
         ;; Неизвестный тип
-        :else [state nil]))))
+        :else {:state state :ast nil}))))
+
 
 (defn parse-variable-declarations
-  "Парсит список объявлений переменных через запятую.
-   Возвращает вектор деклараций и новое состояние."
   [state]
   (log/trace "Entering parse-variable-declarations with state:" 
              {:position (:position state)
               :current-token (when-let [t (current-token state)] 
                              {:type (:type t) :value (:value t)})})
   
-  (let [[new-state type-info] (parse-type state)]  ;; Destructure as vector
-    (if (nil? type-info)
+  (let [type-result (parse-type state)]
+    (if (nil? (:ast type-result))
       (handle-error state {:context "Неверный тип в объявлении переменной"})
-      (let [{:keys [type modifiers]} type-info]  ;; Get type info from the second element
-        (loop [current-state new-state  ;; Use the new state from parse-type
+      (let [{:keys [type modifiers]} (:ast type-result)]
+        (loop [current-state (:state type-result)
                declarations []]
           (let [name-token (current-token current-state)]
             (if (identifier? name-token)
@@ -1076,12 +850,10 @@
                     separator-token (current-token next-state)]
                 
                 (cond
-                  ;; Точка с запятой - конец списка
                   (semicolon? separator-token)
                   {:state (step-next next-state)
                    :ast (nodes/->Block (conj declarations var-decl))}
                   
-                  ;; Запятая - продолжаем парсить
                   (comma? separator-token)
                   (recur (step-next next-state) 
                          (conj declarations var-decl))
@@ -1090,9 +862,9 @@
                   (handle-error next-state 
                               {:context "Ожидается запятая или точка с запятой после объявления переменной"})))
               
-              ;; Не идентификатор
               (handle-error current-state 
                           {:context "Ожидается имя переменной"}))))))))
+
 
 (defn parse-statement
   "Универсальная функция для разбора различных операторов, 
@@ -1125,10 +897,10 @@
           (type-int-keyword?      token)
           (type-char-keyword?     token)
           (type-void-keyword?     token))
-      (let [[declarations final-state] (parse-variable-declarations state)]
-        (if (seq declarations)
+      (let [result (parse-variable-declarations state)]
+        (if (seq (:ast result))
           ;; Возвращаем все декларации как блок
-          (assoc final-state :ast (nodes/->Block declarations))
+          (assoc (:state result) :ast (nodes/->Block (:ast result)))
           (handle-error state {:context "Ошибка в объявлении переменной"})))
               
       ;; Оператор присваивания (идентификатор = выражение;)
@@ -1158,10 +930,10 @@
 (defn parse-binary-expression
   "Парсит бинарное выражение с учетом приоритета операторов"
   [state min-precedence]
-  (let [[current-state result] (parse-primary-expression state)]
-    (if result
-      (loop [current-state current-state
-             result result]
+  (let [primary-result (parse-primary-expression state)]
+    (if (:ast primary-result)
+      (loop [current-state (:state primary-result)
+             result (:ast primary-result)]
         (let [op-token (current-token current-state)]
           (if (and op-token
                    (or (plus? op-token)
@@ -1173,14 +945,13 @@
             (let [op-precedence (get operator-precedence (:value op-token))
                   next-min-precedence (inc op-precedence)
                   after-op (step-next current-state)
-                  [rhs-state rhs] (parse-binary-expression after-op next-min-precedence)]
-              (if rhs
-                (recur rhs-state 
-                       (nodes/->BinaryExpression (:value op-token) result rhs))
-                [current-state result]))
-            [current-state result])))
-      ;; Если первичное выражение не удалось разобрать
-      [state nil])))
+                  rhs-result (parse-binary-expression after-op next-min-precedence)]
+              (if (:ast rhs-result)
+                (recur (:state rhs-result)
+                       (nodes/->BinaryExpression (:value op-token) result (:ast rhs-result)))
+                {:state current-state :ast result})))
+      {:state state :ast nil})))))
+
 
 (defn parse-primary-expression
   "Парсит первичное выражение (числа, идентификаторы, выражения в скобках)"
@@ -1192,24 +963,28 @@
     (cond
       ;; Открывающая скобка - выражение в скобках
       (open-round-bracket? token)
-      (let [[after-expr-state expr] (parse-expression (step-next state))
-            close-token (current-token after-expr-state)]
+      (let [expr-result (parse-expression (step-next state))
+            close-token (current-token (:state expr-result))]
         (if (close-round-bracket? close-token)
-          [(step-next after-expr-state) expr]
-          (handle-error after-expr-state
+          {:state (step-next (:state expr-result)) 
+           :ast (:ast expr-result)}
+          (handle-error (:state expr-result)
                      {:context "Missing closing parenthesis"})))
       
       ;; Числовой литерал
       (int-number? token)
-      [(step-next state) (nodes/->Literal :int (:value token))]
+      {:state (step-next state) 
+       :ast (nodes/->Literal :int (:value token))}
       
       ;; Идентификатор
       (identifier? token)
-      [(step-next state) (nodes/->Identifier (:value token))]
+      {:state (step-next state) 
+       :ast (nodes/->Identifier (:value token))}
       
       ;; Выражение в скобках
       :else
-      [state nil])))
+      {:state state :ast nil})))
+
 
 (defn parse-expression
   "Парсит выражение, включая арифметические операции"
@@ -1235,24 +1010,24 @@
                 (or-equal? op-token)
                 (xor-equal? op-token))
           (let [after-op (step-next after-left)
-                [after-expr-state right-expr] (parse-expression after-op)]
+                expr-result (parse-expression after-op)]
             (log/debug "Expression parsed:"
-                      "\n  State:" after-expr-state
-                      "\n  Expression:" right-expr)
-            (if (and after-expr-state right-expr)
-              (let [semicolon-token (current-token after-expr-state)]
+                      "\n  State:" (:state expr-result)
+                      "\n  Expression:" (:ast expr-result))
+            (if (and (:state expr-result) (:ast expr-result))
+              (let [semicolon-token (current-token (:state expr-result))]
                 (if (semicolon? semicolon-token)
-                  {:state (step-next after-expr-state)  ;; Return map with :state and :ast
+                  {:state (step-next (:state expr-result))
                    :ast (nodes/->Assignment 
                          left 
-                         right-expr 
+                         (:ast expr-result)
                          (case (:type op-token)
                            :equal-assignment-operator     "="
                            :and-equal-assignment-operator "&="
                            :or-equal-assignment-operator  "|="
                            :xor-equal-assignment-operator "^="
                            "="))}
-                  (handle-error after-expr-state
+                  (handle-error (:state expr-result)
                               {:context "Missing semicolon after assignment"
                                :found semicolon-token
                                :expected ";"})))
@@ -1262,7 +1037,8 @@
           (handle-error after-left
                       {:context "Expected assignment operator"
                        :found op-token})))
-      {:state state :ast nil})))  ;; Return consistent map format
+      {:state state :ast nil})))
+
 
 (defn parse-block
   "Парсит блок кода, заключенный в фигурные скобки"
@@ -1329,57 +1105,61 @@
                    {:context "Expected 'return' keyword"}))))
 
 (defn parse-for-loop
-  "Парсит цикл for.
-   Возвращает [new-state ast]"
   [state]
   (let [for-token (current-token state)]
     (if (type-for-keyword? for-token)
       (let [open-paren-state (step-next state)
             open-paren-token (current-token open-paren-state)]
         (if (open-round-bracket? open-paren-token)
-          (let [[init-state init] (parse-expression (step-next open-paren-state))
-                semicolon1-token (current-token init-state)]
+          (let [init-result (parse-expression (step-next open-paren-state))
+                semicolon1-token (current-token (:state init-result))]
             (if (semicolon? semicolon1-token)
-              (let [[end-state end] (parse-expression (step-next init-state))
-                    semicolon2-token (current-token end-state)]
+              (let [end-result (parse-expression (step-next (:state init-result)))
+                    semicolon2-token (current-token (:state end-result))]
                 (if (semicolon? semicolon2-token)
-                  (let [[step-state step] (parse-expression (step-next end-state))
-                        close-paren-token (current-token step-state)]
+                  (let [step-result (parse-expression (step-next (:state end-result)))
+                        close-paren-token (current-token (:state step-result))]
                     (if (close-round-bracket? close-paren-token)
-                      (let [body-state (parse-block (step-next step-state))]
-                        (if (:ast body-state)
-                          [body-state (nodes/->ForLoop init end step (:ast body-state))]
-                          (handle-error step-state
+                      (let [body-result (parse-block (step-next (:state step-result)))]
+                        (if (:ast body-result)
+                          {:state (:state body-result)
+                           :ast (nodes/->ForLoop (:ast init-result) 
+                                               (:ast end-result) 
+                                               (:ast step-result) 
+                                               (:ast body-result))}
+                          (handle-error (:state step-result)
                                      {:context "Failed to parse for loop body"})))
-                      (handle-error step-state
+                      (handle-error (:state step-result)
                                  {:context "Missing closing parenthesis in for loop"})))
-                  (handle-error end-state
+                  (handle-error (:state end-result)
                              {:context "Missing semicolon after end expression in for loop"})))
-              (handle-error init-state
+              (handle-error (:state init-result)
                          {:context "Missing semicolon after init expression in for loop"})))
           (handle-error open-paren-state
                      {:context "Missing opening parenthesis in for loop"})))
       (handle-error state
                    {:context "Expected 'for' keyword"}))))
 
+
 (defn parse-while-loop
   "Парсит цикл while.
-   Возвращает [new-state ast]"
+   Возвращает {:state :ast}"
   [state]
   (let [while-token (current-token state)]
     (if (type-while-keyword? while-token)
       (let [open-paren-state (step-next state)
             open-paren-token (current-token open-paren-state)]
         (if (open-round-bracket? open-paren-token)
-          (let [[cond-state condition] (parse-expression (step-next open-paren-state))
-                close-paren-token (current-token cond-state)]
+          (let [cond-result (parse-expression (step-next open-paren-state))
+                close-paren-token (current-token (:state cond-result))]
             (if (close-round-bracket? close-paren-token)
-              (let [body-state (parse-block (step-next cond-state))]
-                (if (:ast body-state)
-                  [body-state (nodes/->WhileLoop condition (:ast body-state))]
-                  (handle-error cond-state
+              (let [body-result (parse-block (step-next (:state cond-result)))]
+                (if (:ast body-result)
+                  {:state (:state body-result)
+                   :ast (nodes/->WhileLoop (:ast cond-result) (:ast body-result))}
+                  (handle-error (:state cond-result)
                              {:context "Failed to parse while loop body"})))
-              (handle-error cond-state
+              (handle-error (:state cond-result)
                          {:context "Missing closing parenthesis in while loop"})))
           (handle-error open-paren-state
                      {:context "Missing opening parenthesis in while loop"})))
@@ -1388,7 +1168,11 @@
 
 (defn parse-interrupt-declaration
   "Парсит объявление прерывания.
-   Возвращает [new-state ast]"
+   
+   Возвращает:
+   - {:state :ast} где:
+     - state: новое состояние парсера
+     - ast: узел InterruptDeclaration"
   [state]
   (let [interrupt-token (current-token state)]
     (if (interrupt-keyword? interrupt-token)
@@ -1398,10 +1182,10 @@
           (let [func-state (step-next number-state)
                 func-token (current-token func-state)]
             (if (identifier? func-token)
-              [(step-next func-state) 
-               (nodes/->InterruptDeclaration 
+              {:state (step-next func-state)
+               :ast (nodes/->InterruptDeclaration 
                  (Integer/parseInt (:value number-token))
-                 (:value func-token))]
+                 (:value func-token))}
               (handle-error func-state
                          {:context "Expected function name in interrupt declaration"})))
           (handle-error number-state
@@ -1411,7 +1195,11 @@
 
 (defn parse-using-declaration
   "Парсит объявление using.
-   Возвращает [new-state ast]"
+   
+   Возвращает:
+   - {:state :ast} где:
+     - state: новое состояние парсера
+     - ast: узел UsingDeclaration"
   [state]
   (let [using-token (current-token state)]
     (if (using-keyword? using-token)
@@ -1421,35 +1209,44 @@
           (let [open-paren-state (step-next name-state)
                 open-paren-token (current-token open-paren-state)]
             (if (open-round-bracket? open-paren-token)
-              (loop [current-state (step-next open-paren-state)
-                     vars []]
-                (let [var-token (current-token current-state)]
-                  (cond
-                    (identifier? var-token)
-                    (let [next-state (step-next current-state)
-                          next-token (current-token next-state)]
-                      (cond
-                        (comma? next-token)
-                        (recur (step-next next-state)
-                              (conj vars (:value var-token)))
-                        
-                        (close-round-bracket? next-token)
-                        [(step-next next-state)
-                         (nodes/->UsingDeclaration 
-                           (:value name-token)
-                           (conj vars (:value var-token)))]
-                        
-                        :else
-                        (handle-error next-state
-                                   {:context "Expected comma or closing parenthesis in using declaration"})))
-                    
-                    (close-round-bracket? var-token)
-                    [(step-next current-state)
-                     (nodes/->UsingDeclaration (:value name-token) vars)]
-                    
-                    :else
-                    (handle-error current-state
-                               {:context "Expected identifier or closing parenthesis in using declaration"}))))
+              ;; Переписываем loop/recur часть
+              (letfn [(parse-vars [current-state vars]
+                       (let [var-token (current-token current-state)]
+                         (cond
+                           ;; Закрывающая скобка - завершаем
+                           (close-round-bracket? var-token)
+                           {:state (step-next current-state)
+                            :ast (nodes/->UsingDeclaration (:value name-token) vars)}
+                           
+                           ;; Идентификатор - продолжаем парсинг
+                           (identifier? var-token)
+                           (let [next-state (step-next current-state)
+                                 next-token (current-token next-state)]
+                             (cond
+                               ;; Запятая - следующая переменная
+                               (comma? next-token)
+                               (recur (step-next next-state) 
+                                     (conj vars (:value var-token)))
+                               
+                               ;; Закрывающая скобка - завершаем
+                               (close-round-bracket? next-token)
+                               {:state (step-next next-state)
+                                :ast (nodes/->UsingDeclaration 
+                                      (:value name-token)
+                                      (conj vars (:value var-token)))}
+                               
+                               ;; Ошибка - неожиданный токен
+                               :else
+                               (handle-error next-state
+                                          {:context "Expected comma or closing parenthesis in using declaration"})))
+                           
+                           ;; Ошибка - неожиданный токен
+                           :else
+                           (handle-error current-state
+                                      {:context "Expected identifier or closing parenthesis in using declaration"}))))]
+                ;; Начинаем парсинг переменных
+                (parse-vars (step-next open-paren-state) []))
+              
               (handle-error open-paren-state
                          {:context "Missing opening parenthesis in using declaration"})))
           (handle-error name-state
