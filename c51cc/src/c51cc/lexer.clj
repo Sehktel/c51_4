@@ -3,88 +3,107 @@
 
 (declare tokenize)
 
-;; :TODO add bit type
-
 ;; Типы переменных
-(def void-keyword     {:type :void-type-keyword     :value "void"     })
-(def int-keyword      {:type :int-type-keyword      :value "int"      })
-(def char-keyword     {:type :char-type-keyword     :value "char"     })
-(def signed-keyword   {:type :signed-type-keyword   :value "signed"   })
-(def unsigned-keyword {:type :unsigned-type-keyword :value "unsigned" })
+(def type-keyword {:type :type-keyword
+                  :base-type nil     ;; :void | :int | :char
+                  :signedness nil    ;; :signed | :unsigned | nil
+                  :value nil})       ;; будет содержать оригинальное значение для отладки
+
+;; Предопределенные типы
+(def void-type  (assoc type-keyword :base-type :void :value :void))
+(def int-type   (assoc type-keyword :base-type :int  :value :int))
+(def char-type  (assoc type-keyword :base-type :char :value :char))
 
 ;; Управляющие конструкции
-(def if-keyword       {:type :if-control-keyword     :value "if"     })
-(def else-keyword     {:type :else-control-keyword   :value "else"   })
-(def while-keyword    {:type :while-control-keyword  :value "while"  })
-(def for-keyword      {:type :for-control-keyword    :value "for"    })
-(def return-keyword   {:type :return-control-keyword :value "return" })
+(def if-keyword       {:type :control-keyword :value :if     })
+(def else-keyword     {:type :control-keyword :value :else   })
+(def while-keyword    {:type :control-keyword :value :while  })
+(def for-keyword      {:type :control-keyword :value :for    })
+(def return-keyword   {:type :control-keyword :value :return })
 
 ;; Ключевое слово main
-(def main-keyword     {:type :main-keyword :value "main" })
+(def main-keyword     {:type :main-keyword :value :main })
 
 ;; Специальные ключевые слова микроконтроллера
-(def interrupt-keyword  {:type :interrupt-c51-keyword :value "interrupt"  })
-(def sfr-keyword        {:type :sfr-c51-keyword       :value "sfr"        })
-(def sbit-keyword       {:type :sbit-c51-keyword      :value "sbit"       })
-(def using-keyword      {:type :using-c51-keyword     :value "using"      })
+(def interrupt-keyword  {:type :c51-keyword :value :interrupt  })
+(def sfr-keyword        {:type :c51-keyword :value :sfr        })
+(def sbit-keyword       {:type :c51-keyword :value :sbit       })
+(def using-keyword      {:type :c51-keyword :value :using      })
 
 ;; Скобки
-(def open-round-bracket     {:type :open-round-bracket    :value "(" })
-(def close-round-bracket    {:type :close-round-bracket   :value ")" })
-(def open-curly-bracket     {:type :open-curly-bracket    :value "{" })
-(def close-curly-bracket    {:type :close-curly-bracket   :value "}" })
-(def open-square-bracket    {:type :open-square-bracket   :value "[" })
-(def close-square-bracket   {:type :close-square-bracket  :value "]" })
+(def open-round-bracket     {:type :bracket  :value :open-round   })
+(def close-round-bracket    {:type :bracket  :value :close-round  })
+(def open-curly-bracket     {:type :bracket  :value :open-curly   })
+(def close-curly-bracket    {:type :bracket  :value :close-curly  })
+(def open-square-bracket    {:type :bracket  :value :open-square  })
+(def close-square-bracket   {:type :bracket  :value :close-square })
 
 ;; Операторы сравнения
-(def greater            {:type :greater-comparison-operator       :value ">"  })
-(def less               {:type :less-comparison-operator          :value "<"  })
-(def greater-equal      {:type :greater-equal-comparison-operator :value ">=" })
-(def less-equal         {:type :less-equal-comparison-operator    :value "<=" })
-(def not-equal          {:type :not-equal-comparison-operator     :value "!=" })
+(def greater            {:type :comparison-operator  :value :greater       })
+(def less               {:type :comparison-operator  :value :less          })
+(def greater-equal      {:type :comparison-operator  :value :greater-equal })
+(def less-equal         {:type :comparison-operator  :value :less-equal    })
+(def not-equal          {:type :comparison-operator  :value :not-equal     })
 
 ;; Операторы присваивания
-(def equal      {:type :equal-assignment-operator       :value "="  })
-(def and-equal  {:type :and-equal-assignment-operator   :value "&=" })
-(def or-equal   {:type :or-equal-assignment-operator    :value "|=" })
-(def xor-equal  {:type :xor-equal-assignment-operator   :value "^=" })
+(def equal      {:type :assignment-operator   :value :equal     })
+(def and-equal  {:type :assignment-operator   :value :and-equal })
+(def or-equal   {:type :assignment-operator   :value :or-equal  })
+(def xor-equal  {:type :assignment-operator   :value :xor-equal })
 
 ;; Битовые операторы
-(def and-bitwise {:type :and-bitwise-operator :value "&" })
-(def or-bitwise  {:type :or-bitwise-operator  :value "|" })
-(def xor-bitwise {:type :xor-bitwise-operator :value "^" })
-(def not-bitwise {:type :not-bitwise-operator :value "~" })
+(def and-bitwise {:type :bitwise-operator  :value :and })
+(def or-bitwise  {:type :bitwise-operator  :value :or  })
+(def xor-bitwise {:type :bitwise-operator  :value :xor })
+(def not-bitwise {:type :bitwise-operator  :value :not })
 
 ;; Разделители
-(def semicolon  {:type :semicolon-separator :value ";" })
-(def comma      {:type :comma-separator     :value "," })
-(def dot        {:type :dot-separator       :value "." })
-(def colon      {:type :colon-separator     :value ":" })
+(def semicolon  {:type :separator   :value  :semicolon })
+(def comma      {:type :separator   :value  :comma      })
+(def dot        {:type :separator   :value  :dot        })
+(def colon      {:type :separator   :value  :colon      })
 
 ;; Арифметические операторы
-(def plus       {:type :plus-math-operator      :value "+" })
-(def minus      {:type :minus-math-operator     :value "-" })
-(def multiply   {:type :multiply-math-operator  :value "*" })
-(def divide     {:type :divide-math-operator    :value "/" })
-(def modulo     {:type :modulo-math-operator    :value "%" })
+(def plus       {:type :math-operator    :value :plus      })
+(def minus      {:type :math-operator    :value :minus     })
+(def multiply   {:type :math-operator    :value :multiply  })
+(def divide     {:type :math-operator    :value :divide    })
+(def modulo     {:type :math-operator    :value :modulo    })
+;; Инкремент и декремент
+(def increment  {:type :math-operator    :value :increment })
+(def decrement  {:type :math-operator    :value :decrement })
 
 ;; Логические операторы
-(def or-logical         {:type :or-logical-operator         :value "||" })
-(def and-logical        {:type :and-logical-operator        :value "&&" })
-(def equal-logical      {:type :equal-logical-operator      :value "==" })
-(def not-equal-logical  {:type :not-equal-logical-operator  :value "!=" })
-(def not-logical        {:type :not-logical-operator        :value "!"  })
+(def or-logical         {:type :logical-operator  :value :or        })
+(def and-logical        {:type :logical-operator  :value :and       })
+(def equal-logical      {:type :logical-operator  :value :equal     })
+(def not-equal-logical  {:type :logical-operator  :value :not-equal })
+(def not-logical        {:type :logical-operator  :value :not       })
 
 ;; Числа
-(def int-number {:type :int-number :value 0    })
-(def hex-number {:type :hex-number :value 0x00 })
+(def number {:type :number 
+                 :format :decimal  ;; :decimal | :hex
+                 :value 0})
 
 ;; Идентификаторы
 (def identifier {:type :identifier :value "" })
 
-;; Инкремент и декремент
-(def increment {:type :increment-operator :value "++" })
-(def decrement {:type :decrement-operator :value "--" })
+;; Функция для объединения модификаторов типа
+(defn merge-type-modifiers
+  "Объединяет базовый тип с модификатором.
+   Возвращает nil если комбинация некорректна."
+  [base modifier]
+  (cond
+    ;; Если у нас базовый тип
+    (and (:base-type base) (:signedness modifier))
+    (assoc base :signedness (:signedness modifier))
+    
+    ;; Если у нас модификатор
+    (and (:signedness base) (:base-type modifier))
+    (assoc modifier :signedness (:signedness base))
+    
+    ;; В остальных случаях возвращаем nil, что означает некорректную комбинацию
+    :else nil))
 
 ;; Улучшенная функция токенизации для полных выражений
 (defn tokenize
@@ -116,11 +135,11 @@
       (let [token (first tokens)]
         (cond
           ;; Ключевые слова
-          (= token "void")      [void-keyword]
-          (= token "int")       [int-keyword]
-          (= token "char")      [char-keyword]
-          (= token "signed")    [signed-keyword]
-          (= token "unsigned")  [unsigned-keyword]
+          (= token "void")      [void-type]
+          (= token "int")       [int-type]
+          (= token "char")      [char-type]
+          (= token "signed")    {:type :type-keyword :base-type nil :signedness :signed :value nil}
+          (= token "unsigned")  {:type :type-keyword :base-type nil :signedness :unsigned :value nil}
 
           ;; Управляющие конструкции
           (= token "if")     [if-keyword]
@@ -190,10 +209,10 @@
           
           ;; Числа
           (re-matches #"^\d+$" token) 
-          [{:type :int-number :value (Integer/parseInt token)}]
+          [{:type :number :format :decimal :value (Integer/parseInt token)}]
           
           (re-matches #"^0x[0-9A-Fa-f]+$" token)
-          [{:type :hex-number :value (Integer/parseInt (subs token 2) 16)}]
+          [{:type :number :format :hex     :value (Integer/parseInt (subs token 2) 16)}]
           
           ;; Идентификаторы
           (re-matches #"^[a-zA-Z_][a-zA-Z0-9_]*$" token)
