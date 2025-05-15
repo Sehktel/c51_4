@@ -1,0 +1,82 @@
+parse
+├── create-parser-state
+└── parse-program
+    ├── parse-declaration
+    │   ├── parse-type
+    │   │   └── parse-type-modifiers [unsigned|signed]
+    │   ├── parse-identifier
+    │   └── parse-initializer [опционально]
+    │       └── parse-expression
+    │
+    ├── parse-function
+    │   ├── parse-type
+    │   ├── parse-identifier
+    │   ├── parse-params
+    │   │   └── parse-param*
+    │   │       ├── parse-type
+    │   │       └── parse-identifier
+    │   ├── parse-interrupt [опционально]
+    │   │   ├── parse-number
+    │   │   └── parse-identifier
+    │   ├── parse-using [опционально]
+    │   │   └── parse-identifier*
+    │   └── parse-block
+    │       └── parse-statement*
+    │
+    ├── parse-statement
+    │   ├── parse-if
+    │   │   ├── parse-expression
+    │   │   ├── parse-block
+    │   │   └── parse-else [опционально]
+    │   │       └── parse-block
+    │   │
+    │   ├── parse-while
+    │   │   ├── parse-expression
+    │   │   └── parse-block
+    │   │
+    │   ├── parse-for
+    │   │   ├── parse-init
+    │   │   │   └── parse-expression
+    │   │   ├── parse-condition
+    │   │   │   └── parse-expression
+    │   │   ├── parse-step
+    │   │   │   └── parse-expression
+    │   │   └── parse-block
+    │   │
+    │   ├── parse-return
+    │   │   └── parse-expression
+    │   │
+    │   └── parse-assignment
+    │       ├── parse-identifier
+    │       └── parse-expression
+    │
+    ├── parse-expression
+    │   ├── parse-binary-expression
+    │   │   ├── parse-operator
+    │   │   └── parse-expression [рекурсивно]
+    │   │
+    │   └── parse-primary-expression
+    │       ├── parse-literal
+    │       ├── parse-identifier
+    │       └── parse-parenthesized
+    │           └── parse-expression
+    │
+    └── parse-special
+        ├── parse-sfr
+        │   ├── parse-identifier
+        │   └── parse-hex-number
+        │
+        ├── parse-sbit
+        │   ├── parse-identifier
+        │   └── parse-number
+        │
+        └── parse-interrupt
+            ├── parse-number
+            └── parse-identifier
+
+Вспомогательные функции на всех уровнях:
+├── current-token
+├── next-token
+├── expect-token
+├── step-next
+└── handle-error
